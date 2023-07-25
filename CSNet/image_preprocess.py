@@ -32,46 +32,53 @@ def update_operator(type, option='csnet'):
     return operator
 
 def get_origin_box(norm_box, image_size):
-    new_box = norm_box
+    new_box = norm_box.copy()
     new_box[0] = norm_box[0] * image_size[0]
     new_box[2] = norm_box[2] * image_size[0]
     new_box[1] = norm_box[1] * image_size[1]
     new_box[3] = norm_box[3] * image_size[1]
-
     new_box = [int(x) for x in new_box]
     return new_box
 
-def get_shifted_image_labeled(image, bounding_box, zero_pixel=False, option='csnet'):
-    operator = update_operator('shift', option)
-    new_box = shifting(bounding_box, operator)
+def get_shifted_image(image, bounding_box, allow_zero_pixel=False, option='csnet'):
+    norm_box = normalize_box(bounding_box, image.size)
     
-    while zero_pixel == False and is_not_in_image(new_box):
+    operator = update_operator('shift', option)
+    new_box = shifting(norm_box, operator)
+    
+    while allow_zero_pixel == False and is_not_in_image(new_box):
         operator = update_operator('shift', option)
-        new_box = shifting(new_box, operator)
+        new_box = shifting(norm_box, operator)
 
     new_box = get_origin_box(new_box, image.size)
 
     new_image = image.crop(new_box)
     return new_image
 
-def get_zooming_out_image_labeled(image, bounding_box, zero_pixel=False, option='csnet'):
+def get_zooming_out_image(image, bounding_box, allow_zero_pixel=False, option='csnet'):
+    norm_box = normalize_box(bounding_box, image.size)
     operator = update_operator('zoom_out', option)
-    new_box = zooming_out(bounding_box, operator)
-    while zero_pixel == False and is_not_in_image(new_box):
+    new_box = zooming_out(norm_box, operator)
+
+    while allow_zero_pixel == False and is_not_in_image(new_box):
         operator = update_operator('zoom_out', option)
-        new_box = zooming_out(new_box, operator)
+        new_box = zooming_out(norm_box, operator)
+
     new_box = get_origin_box(new_box, image.size)
+    
 
     new_image = image.crop(new_box)
     return new_image
 
-def get_cropping_image_labeled(image, bounding_box, zero_pixel=False, option='csnet'):
-    operator = update_operator('crop', option)
+def get_cropping_image(image, bounding_box, allow_zero_pixel=False, option='csnet'):
+    norm_box = normalize_box(bounding_box, image.size)
 
-    new_box = cropping(bounding_box, operator)
-    while zero_pixel == False and is_not_in_image(new_box):
+    operator = update_operator('crop', option)
+    new_box = zooming_out(norm_box, operator)
+
+    while allow_zero_pixel == False and is_not_in_image(new_box):
         operator = update_operator('crop', option)
-        new_box = cropping(new_box, operator)
+        new_box = cropping(norm_box, operator)
 
     new_box = get_origin_box(new_box, image.size)
 
@@ -88,7 +95,7 @@ def rotate_dot(x, y, oa):
     y = int(y)
     return x, y
 
-def get_rotated_image(image, bounding_box, zero_pixel=False, option='csnet', radian=None):
+def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet', radian=None):
 
     def is_not_in_image_rotate(corners, image_size):
         for point in corners:
@@ -105,7 +112,7 @@ def get_rotated_image(image, bounding_box, zero_pixel=False, option='csnet', rad
     rotated_box_corners, radian = rotation(bounding_box, oa)
 
     # check the rotated image is in original image
-    while zero_pixel == False and is_not_in_image_rotate(rotated_box_corners, image.size):
+    while allow_zero_pixel == False and is_not_in_image_rotate(rotated_box_corners, image.size):
         oa = random.uniform(-math.pi/4, math.pi/4)
         rotated_box_corners, radian = rotation(bounding_box, oa)
 
@@ -129,33 +136,34 @@ def get_rotated_image(image, bounding_box, zero_pixel=False, option='csnet', rad
     return rotated_image
 
 def normalize_box(box, image_size):
-    box[0] = box[0] / image_size[0]
-    box[2] = box[2] / image_size[0]
-    box[1] = box[1] / image_size[1]
-    box[3] = box[3] / image_size[1]
-    return box
+    norm_box = box.copy()
+    norm_box[0] = norm_box[0] / image_size[0]
+    norm_box[2] = norm_box[2] / image_size[0]
+    norm_box[1] = norm_box[1] / image_size[1]
+    norm_box[3] = norm_box[3] / image_size[1]
+    return norm_box
 
 if __name__ == '__main__':
     image_path = '../sample.jpg'
-    bounding_box = [0, 0, 640, 480]
+    bounding_box = [200, 100, 400, 350]
     image = Image.open(image_path)
     image.show()
     print(image.size)
 
-    zero_pixel = True
+    allow_zero_pixel = False
 
     box = image.crop(bounding_box)
     box.show()
 
-    rotated_image = get_rotated_image(image, bounding_box, zero_pixel = True)
+    rotated_image = get_rotated_image(image, bounding_box, allow_zero_pixel)
     rotated_image.show()
 
     norm_bounding_box = normalize_box(bounding_box, image.size)
-    shifted_image = get_shifted_image_labeled(image, norm_bounding_box, zero_pixel = True)
+    shifted_image = get_shifted_image(image, norm_bounding_box, allow_zero_pixel)
     shifted_image.show()
 
-    zoomed_out_image = get_zooming_out_image_labeled(image, norm_bounding_box, zero_pixel = True)
+    zoomed_out_image = get_zooming_out_image(image, norm_bounding_box, allow_zero_pixel)
     zoomed_out_image.show()
 
-    cropped_image = get_cropping_image_labeled(image, norm_bounding_box, zero_pixel = True)
+    cropped_image = get_cropping_image(image, norm_bounding_box, allow_zero_pixel)
     cropped_image.show()

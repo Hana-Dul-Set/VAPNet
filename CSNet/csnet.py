@@ -29,6 +29,7 @@ class CSNet(nn.Module):
         feature_map = self.backbone(image)
         spp = self.spatial_pyramid_pool(feature_map, feature_map.shape[0], [int(feature_map.size(2)),int(feature_map.size(3))],self.spp_pool_size)
         feature_vector = self.last_layer(spp)
+
         output = self.output_layer(feature_vector)
         return output
     
@@ -56,5 +57,6 @@ if __name__ == '__main__':
     model = CSNet(cfg)
     x = torch.randn((1, 3, 299, 299))
     output = model(x)
+    torch.save(model.state_dict(), './output/weight/csnet_checkpoint.pth')
     print(output)
     print(output[0].item())

@@ -12,9 +12,7 @@ def change_proportion_to_zero(image, bounding_box):
 
     return modified_image
 
-def shift_borders(image, bounding_box):
-
-    image = image.crop(bounding_box)
+def shift_borders(image):
 
     sx = random.uniform(0, 0.4)
     x_bounding_box = [
@@ -34,9 +32,7 @@ def shift_borders(image, bounding_box):
 
     return augmented_image
 
-def zoom_out_borders(image, bounding_box):
-
-    image = image.crop(bounding_box)
+def zoom_out_borders(image):
 
     sz = random.uniform(0, 0.4) * 0.5
     x_bounding_box = [
@@ -56,12 +52,12 @@ def zoom_out_borders(image, bounding_box):
 
     return augmented_image
 
-def rotation_borders(image, bounding_box):
+def rotation_borders(image):
     theta = random.uniform(-math.pi / 4, math.pi / 4)
-    rotated_image = get_rotated_image(image, bounding_box, zero_pixel=True, option='augmentation', radian=theta)
-    rotated_image.save('rotated_image.jpg')
+    bounding_box = [0, 0, image.size[0], image.size[1]]
+    rotated_image = get_rotated_image(image, bounding_box, allow_zero_pixel=True, option='augmentation', radian=theta)
 
-    initial_image = get_rotated_image(rotated_image, [0, 0, rotated_image.size[0], rotated_image.size[1]], zero_pixel=True, option='augmentation', radian=-theta)
+    initial_image = get_rotated_image(rotated_image, [0, 0, rotated_image.size[0], rotated_image.size[1]], allow_zero_pixel=True, option='augmentation', radian=-theta)
     return initial_image
 
 if __name__ == '__main__':
@@ -71,11 +67,11 @@ if __name__ == '__main__':
 
     bounding_box = [0, 0, image.size[0], image.size[1]]
 
-    augmented_image = shift_borders(image, bounding_box)
+    augmented_image = shift_borders(image)
     augmented_image.show()
 
-    augmented_image = zoom_out_borders(image, bounding_box)
+    augmented_image = zoom_out_borders(image)
     augmented_image.show()
 
-    augmented_image = rotation_borders(image, bounding_box)
+    augmented_image = rotation_borders(image)
     augmented_image.show()

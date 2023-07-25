@@ -6,6 +6,10 @@ import json
 from config import Config
 import random
 
+from image_preprocess import get_cropping_image, get_zooming_out_image, get_shifted_image, get_rotated_image
+from augmentation import shift_borders, zoom_out_borders, rotation_borders
+
+
 # scored crops dataset
 class SCDataset(Dataset):
     def __init__(self, mode, cfg) :
@@ -24,15 +28,18 @@ class SCDataset(Dataset):
 
         self.random_crops_count = self.cfg.scored_crops_N
 
+        self.transformer = transforms.Compose([
+            transforms.ToTensor()
+        ])
+
     def __len__(self):
         return len(self.image_list)
     
     def __getitem__(self, index):
-        image = Image.open(os.path.join(self.image_dir, self.image_list[index]))
+        image_name = self.image_list[index]
         crops_list = self.data_list[index]
         selected_crops_list = random.sample(crops_list, self.random_crops_count)
-
-        return image, selected_crops_list
+        return image_name, selected_crops_list
 
     def build_data_list(self):
         data_list = []
@@ -65,10 +72,9 @@ class BCDataset(Dataset):
         return len(self.image_list)
     
     def __getitem__(self, index):
-        image = Image.open(os.path.join(self.image_dir, self.image_list[index]))
-        best_crop = self.data_list[index]
-
-        return image, best_crop
+        image_name = self.image_list[index]
+        best_crop_bounding_box = self.data_list[index]
+        return image_name, best_crop_bounding_box
 
     def build_data_list(self):
         data_list = []
@@ -98,8 +104,8 @@ class UNDataset(Dataset):
         return len(self.image_list)
     
     def __getitem__(self, index):
-        image = Image.open(os.path.join(self.image_dir, self.image_list[index]))
-        return image
+        image_name = self.image_list[index]
+        return image_name
 
     def build_data_list(self):
         data_list = []
@@ -109,7 +115,12 @@ class UNDataset(Dataset):
         for data in data_list:
             image_list.append(data['name'])
         return image_list
-    
+
 if __name__ == '__main__':
     cfg = Config()
+
+    idx = 0
+    dataset = SCDataset('train', cfg)
+    # make_pairs_scored_crops(dataset.__getitem__(0))
     dataset = UNDataset('train', cfg)
+    print(dataset.__getitem__(idx))    
