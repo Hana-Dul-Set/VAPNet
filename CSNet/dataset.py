@@ -92,7 +92,7 @@ class UNDataset(Dataset):
         self.dataset_path = self.cfg.unlabeled_data
         
         if mode == 'train':
-            self.annotation_path = os.path.join(self.dataset_path, 'unlabeled_training_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'unsplash_training_set_20230726_1608.json')
 
         self.image_list = self.build_data_list()
 

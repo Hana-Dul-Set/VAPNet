@@ -43,8 +43,8 @@ class Trainer(object):
         self.image_dir = self.cfg.image_dir
 
         self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(self.cfg)
-        # self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
+        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_batch_size = self.cfg.scored_crops_batch_size
         self.bc_batch_size = self.cfg.best_crop_K
@@ -188,7 +188,7 @@ class Trainer(object):
             best_crop = image.crop(best_crop_bounding_box)
         else:
             image_name = data
-            image = Image.open(os.path.join(self.image_dir, image_name))
+            image = Image.open(os.path.join(os.path.join(self.image_dir, 'unlabeled'), image_name))
             best_crop_bounding_box = [0, 0, image.size[0], image.size[1]]
             best_crop = image
 

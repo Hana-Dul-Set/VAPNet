@@ -2,7 +2,7 @@ import os
 import math
 
 class Config:
-    def __init__(self, mode='train'):
+    def __init__(self):
         
         self.image_dir = '../data/image'
 
@@ -23,9 +23,9 @@ class Config:
         self.max_epoch = 1
 
         self.scored_crops_batch_size = 1
-        self.scored_crops_N = 4
+        self.scored_crops_N = 16
         self.best_crop_K = 16
-        self.unlabeled_P = 1
+        self.unlabeled_P = 16
 
         self.image_size = (299, 299)
         self.mean = [0.485, 0.456, 0.406]
