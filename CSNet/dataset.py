@@ -28,10 +28,6 @@ class SCDataset(Dataset):
 
         self.random_crops_count = self.cfg.scored_crops_N
 
-        self.transformer = transforms.Compose([
-            transforms.ToTensor()
-        ])
-
     def __len__(self):
         return len(self.image_list)
     

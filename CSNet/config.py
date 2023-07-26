@@ -16,14 +16,15 @@ class Config:
         self.gpu_id = 0
         self.num_workers = 1
 
+        self.pairwise_margin = 0.2
         self.learning_rate = 2 * math.exp(-5)
         self.weight_decay = 5 * math.exp(-4)
 
-        self.max_epoch = 10
+        self.max_epoch = 1
 
         self.scored_crops_batch_size = 1
         self.scored_crops_N = 4
-        self.best_crop_K = 4
+        self.best_crop_K = 16
         self.unlabeled_P = 1
 
         self.image_size = (299, 299)

@@ -14,6 +14,8 @@ def is_not_in_image(boudning_box):
     return False
 
 def update_operator(type, option='csnet'):
+
+    # ox, oy, oz, oa
     operator = [0.0, 0.0, 0.0, 0.0]
 
     if type == 'shift':
@@ -25,7 +27,7 @@ def update_operator(type, option='csnet'):
             operator[2] = random.uniform(0, 0.4)
     elif type == 'crop':
         if option == 'csnet':
-            operator[2] = random.uniform(math.sqrt(0.5), -math.sqrt(0.8))
+            operator[2] = random.uniform(math.sqrt(0.5), math.sqrt(0.8))
             operator[0] = random.uniform(-operator[2] / 2, operator[2] / 2)
             operator[1] = random.uniform(-operator[2] / 2, operator[2] / 2)
 
@@ -47,8 +49,7 @@ def get_shifted_image(image, bounding_box, allow_zero_pixel=False, option='csnet
     new_box = shifting(norm_box, operator)
     
     while allow_zero_pixel == False and is_not_in_image(new_box):
-        operator = update_operator('shift', option)
-        new_box = shifting(norm_box, operator)
+        return None
 
     new_box = get_origin_box(new_box, image.size)
 
@@ -61,9 +62,7 @@ def get_zooming_out_image(image, bounding_box, allow_zero_pixel=False, option='c
     new_box = zooming_out(norm_box, operator)
 
     while allow_zero_pixel == False and is_not_in_image(new_box):
-        operator = update_operator('zoom_out', option)
-        new_box = zooming_out(norm_box, operator)
-
+        return None
     new_box = get_origin_box(new_box, image.size)
     
 
@@ -77,8 +76,7 @@ def get_cropping_image(image, bounding_box, allow_zero_pixel=False, option='csne
     new_box = zooming_out(norm_box, operator)
 
     while allow_zero_pixel == False and is_not_in_image(new_box):
-        operator = update_operator('crop', option)
-        new_box = cropping(norm_box, operator)
+        return None
 
     new_box = get_origin_box(new_box, image.size)
 
@@ -113,8 +111,7 @@ def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet
 
     # check the rotated image is in original image
     while allow_zero_pixel == False and is_not_in_image_rotate(rotated_box_corners, image.size):
-        oa = random.uniform(-math.pi/4, math.pi/4)
-        rotated_box_corners, radian = rotation(bounding_box, oa)
+        return None
 
     # make the rectangle cropped image which contains the rotated image
     rec_corners = (min(x[0] for x in rotated_box_corners), min(x[1] for x in rotated_box_corners), max(x[0] for x in rotated_box_corners), max(x[1] for x in rotated_box_corners))
@@ -144,7 +141,7 @@ def normalize_box(box, image_size):
     return norm_box
 
 if __name__ == '__main__':
-    image_path = '../sample.jpg'
+    image_path = '../data/sample.jpg'
     bounding_box = [200, 100, 400, 350]
     image = Image.open(image_path)
     image.show()
@@ -158,12 +155,11 @@ if __name__ == '__main__':
     rotated_image = get_rotated_image(image, bounding_box, allow_zero_pixel)
     rotated_image.show()
 
-    norm_bounding_box = normalize_box(bounding_box, image.size)
-    shifted_image = get_shifted_image(image, norm_bounding_box, allow_zero_pixel)
+    shifted_image = get_shifted_image(image, bounding_box, allow_zero_pixel)
     shifted_image.show()
 
-    zoomed_out_image = get_zooming_out_image(image, norm_bounding_box, allow_zero_pixel)
+    zoomed_out_image = get_zooming_out_image(image, bounding_box, allow_zero_pixel)
     zoomed_out_image.show()
 
-    cropped_image = get_cropping_image(image, norm_bounding_box, allow_zero_pixel)
+    cropped_image = get_cropping_image(image, bounding_box, allow_zero_pixel)
     cropped_image.show()
