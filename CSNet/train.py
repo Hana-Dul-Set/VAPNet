@@ -71,8 +71,8 @@ class Trainer(object):
 
 
     def training(self):
-        # self.model.train().to(self.device)
-        self.model.train()
+        self.model.train().to(self.device)
+        # self.model.train()
         print('\n======train start======\n')
 
         for index, data in enumerate(zip(self.sc_loader, self.bc_loader, self.un_loader)):
@@ -123,7 +123,9 @@ class Trainer(object):
     def calculate_pairwise_ranking_loss(self, pos_images, neg_images):
         pos_tensor = self.convert_image_list_to_tensor(pos_images)
         neg_tensor = self.convert_image_list_to_tensor(neg_images)
-        target = torch.ones((pos_tensor.shape[0], 1))
+        pos_tensor = pos_tensor.to(self.device)
+        neg_tensor = neg_tensor.to(self.device)
+        target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
         loss = self.loss_fn(self.model(pos_tensor), self.model(neg_tensor), target=target)
         return loss
 
