@@ -107,7 +107,7 @@ class Trainer(object):
                 total_loss = un_loss + bc_loss + sc_loss
 
             total_loss = total_loss.clone().detach().requires_grad_(True)
-            loss_log = f'L_SC: {sc_loss.item():.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
+            loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             self.loss_sum += total_loss.item() 
             self.train_iter += 1
             print(loss_log)
