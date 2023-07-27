@@ -20,12 +20,12 @@ class Config:
         self.learning_rate = 2 * math.exp(-5)
         self.weight_decay = 5 * math.exp(-4)
 
-        self.max_epoch = 1
+        self.max_epoch = 100
 
         self.scored_crops_batch_size = 1
-        self.scored_crops_N = 16
-        self.best_crop_K = 16
-        self.unlabeled_P = 16
+        self.scored_crops_N = 7
+        self.best_crop_K = 8
+        self.unlabeled_P = 8
 
         self.image_size = (299, 299)
         self.mean = [0.485, 0.456, 0.406]

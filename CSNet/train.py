@@ -3,10 +3,11 @@ import torch.optim as optim
 import torch
 import numpy as np
 import os
+import time
 
 from config import Config
 from csnet import CSNet
-from dataset import *
+from dataset import SCDataset, BCDataset, UNDataset, CSNetDataset
 from augmentation import *
 from image_preprocess import get_cropping_image, get_zooming_out_image, get_shifted_image, get_rotated_image
 from test import test_while_training
@@ -60,12 +61,6 @@ class Trainer(object):
         self.epoch = 0
         self.max_epoch = self.cfg.max_epoch
 
-        self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
-        ])
-
         self.loss_sum = 0
         self.train_iter = 0
 
@@ -81,53 +76,70 @@ class Trainer(object):
             un_data_list = data[2]
 
             sc_pos_images, sc_neg_images = self.make_pairs_scored_crops(sc_data_list[0])
-            sc_loss = self.calculate_pairwise_ranking_loss(sc_pos_images, sc_neg_images)
+            sc_loss = self.batch_process_csnet(sc_pos_images, sc_neg_images)
             
             bc_pos_images, bc_neg_images = self.make_pairs_perturbating(bc_data_list, labeled=True)
             if len(bc_pos_images) == 0:
                 bc_loss = None
             else:
-                bc_loss = self.calculate_pairwise_ranking_loss(bc_pos_images, bc_neg_images)
+                bc_loss = self.batch_process_csnet(bc_pos_images, bc_neg_images)
             
             un_pos_images, un_neg_images = self.make_pairs_perturbating(un_data_list, labeled=False)
-            un_loss = self.calculate_pairwise_ranking_loss(un_pos_images, un_neg_images)
+            un_loss = self.batch_process_csnet(un_pos_images, un_neg_images)
 
             
             if bc_loss == None:
-                total_loss = sc_loss + un_loss
+                total_loss = un_loss + sc_loss
             else:
-                total_loss = sc_loss + bc_loss + un_loss
+                total_loss = un_loss + bc_loss + sc_loss
 
-            loss_log = 'Loss: %.5f' % (total_loss.item())
+            loss_log = f'L_SC: {sc_loss.item():.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             self.loss_sum += total_loss.item() 
             self.train_iter += 1
             print(loss_log)
             
-
-            """
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()
-            """
+            
+            del sc_loss
+            del bc_loss
+            del un_loss
+            del total_loss
+            sc_loss = None
+            bc_loss = None
+            un_loss = None
+            total_loss = None
 
         print('\n======train end======\n')
 
-
-    def convert_image_list_to_tensor(self, image_list):
-        tensor = []
-        for image in image_list:
-            tensor.append(self.transformer(image))
-        tensor = torch.stack(tensor, dim=0)
-        return tensor
-
-    def calculate_pairwise_ranking_loss(self, pos_images, neg_images):
-        pos_tensor = self.convert_image_list_to_tensor(pos_images)
-        neg_tensor = self.convert_image_list_to_tensor(neg_images)
-        pos_tensor = pos_tensor.to(self.device)
-        neg_tensor = neg_tensor.to(self.device)
+    def calculate_pairwise_ranking_loss(self, pos_tensor, neg_tensor):
         target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
-        loss = self.loss_fn(self.model(pos_tensor), self.model(neg_tensor), target=target)
+        loss = self.loss_fn(pos_tensor, neg_tensor, target=target)
         return loss
+    
+    def batch_process_csnet(self, pos_images, neg_images):
+        csnet_dataset = CSNetDataset(self.cfg, pos_images, neg_images)
+        cs_loader = DataLoader(dataset=csnet_dataset,
+                              batch_size=8,
+                              shuffle=False,
+                              num_workers=self.cfg.num_workers)
+        for index, (pos_data, neg_data) in enumerate(cs_loader):
+            pos_data = pos_data.to(self.device)
+            neg_data = neg_data.to(self.device)
+            pos_scores = self.model(pos_data)
+            neg_scores = self.model(neg_data)
+            print('pos:', pos_scores)
+            print('neg:', neg_scores)
+            loss = self.calculate_pairwise_ranking_loss(pos_scores, neg_scores)
+            
+            if index == 0:
+                sum_loss = loss
+            else:
+                sum_loss += loss
+            
+        ave_loss = sum_loss / csnet_dataset.__len__()
+        return ave_loss
 
     def run(self):
         for epoch in range(self.epoch, self.max_epoch):
@@ -147,7 +159,7 @@ class Trainer(object):
 
             self.train_iter = 0
             self.loss_sum = 0
-        test_while_training()
+            test_while_training()
             
     def make_pairs_scored_crops(self, data):
         image_name = data[0]
@@ -241,7 +253,7 @@ if __name__ == '__main__':
     cfg = Config()
 
     model = CSNet(cfg)
-    # weight_file = os.path.join(cfg.weight_dir, 'csnet_checkpoint-weight.pth')
+    # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     # model.load_state_dict(torch.load(weight_file))
 
     trainer = Trainer(model, cfg)

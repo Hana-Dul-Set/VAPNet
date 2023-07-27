@@ -4,6 +4,9 @@ import torch
 import numpy as np
 import os
 from tqdm import tqdm
+import time
+from PIL import Image
+from torchvision.transforms import transforms
 
 from config import Config
 from csnet import CSNet
@@ -42,11 +45,10 @@ class Tester(object):
             transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
         ])
 
-        self.data_length = self.sc_loader.__len__()
-
         self.loss_sum = 0
         self.correct_prediction_counts = 0
         self.test_iter = 0
+        self.data_length = len(self.sc_loader)
 
 
     def run(self):
@@ -65,9 +67,8 @@ class Tester(object):
 
         print('\n======test end======\n')
 
-        ave_loss = self.loss_sum / self.data_length
-        accuracy = self.correct_prediction_counts.item() / self.data_length
-
+        ave_loss = self.loss_sum / self.test_iter
+        accuracy = self.correct_prediction_counts.item() / self.test_iter
         test_log = f'Loss: {ave_loss:.5f}, Accuracy: {accuracy *  100:.2f} %'
         print(test_log)
 
@@ -82,15 +83,21 @@ class Tester(object):
         pos_tensor = self.convert_image_list_to_tensor(pos_images)
         neg_tensor = self.convert_image_list_to_tensor(neg_images)
 
+        pos_tensor = pos_tensor.to(self.device)
+        neg_tensor = neg_tensor.to(self.device)
+
         pos_scores = self.model(pos_tensor)
         neg_scores = self.model(neg_tensor)
-        target = torch.ones((pos_tensor.shape[0], 1))
+        target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
+
+        print(pos_scores)
+        print(neg_scores)
 
         loss = self.loss_fn(pos_scores, neg_scores, target=target)
 
         comparison_result = pos_scores > neg_scores
         correct_prediction_counts = comparison_result.sum(dim=0)
-
+        print(correct_prediction_counts)
         return loss, correct_prediction_counts
             
     def make_pairs_scored_crops(self, data):

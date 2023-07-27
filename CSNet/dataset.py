@@ -92,7 +92,7 @@ class UNDataset(Dataset):
         self.dataset_path = self.cfg.unlabeled_data
         
         if mode == 'train':
-            self.annotation_path = os.path.join(self.dataset_path, 'unsplash_training_set_20230726_1608.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'unlabeled_training_set_20230726_1608.json')
 
         self.image_list = self.build_data_list()
 
@@ -111,6 +111,26 @@ class UNDataset(Dataset):
         for data in data_list:
             image_list.append(data['name'])
         return image_list
+    
+class CSNetDataset(Dataset):
+    def __init__(self, cfg, pos_images, neg_images) :
+        self.cfg = cfg
+        self.pos_list = pos_images
+        self.neg_list = neg_images
+        self.transformer = transforms.Compose([
+            transforms.Resize(self.cfg.image_size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
+        ])
+
+    def __len__(self):
+        return len(self.pos_list)
+    
+    def __getitem__(self, index):
+        pos_tensor = self.transformer(self.pos_list[index])
+        neg_tensor = self.transformer(self.neg_list[index])
+        return pos_tensor, neg_tensor
+    
 
 if __name__ == '__main__':
     cfg = Config()
