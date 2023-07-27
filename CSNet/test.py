@@ -70,6 +70,8 @@ class Tester(object):
         ave_loss = self.loss_sum / self.test_iter
         accuracy = self.correct_prediction_counts.item() / self.test_iter
         test_log = f'Loss: {ave_loss:.5f}, Accuracy: {accuracy *  100:.2f} %'
+        with open('./test_log.txt', 'a') as f:
+            f.write(str(ave_loss) + '\n' + str(accuracy))
         print(test_log)
 
     def convert_image_list_to_tensor(self, image_list):
