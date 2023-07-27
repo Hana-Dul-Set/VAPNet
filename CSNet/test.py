@@ -47,6 +47,7 @@ class Tester(object):
 
         self.loss_sum = 0
         self.correct_prediction_counts = 0
+        self.total_prediction_counts = 0
         self.test_iter = 0
         self.data_length = len(self.sc_loader)
 
@@ -59,19 +60,22 @@ class Tester(object):
             for index, data in tqdm(enumerate(self.sc_loader), total=self.data_length):
                 sc_data_list = data
                 sc_pos_images, sc_neg_images = self.make_pairs_scored_crops(sc_data_list[0])
-                sc_loss, correct_prediction = self.calculate_loss_and_accuracy(sc_pos_images, sc_neg_images)
+                if len(sc_pos_images) == 0:
+                    continue
+                sc_loss, correct_prediction, total_prediction = self.calculate_loss_and_accuracy(sc_pos_images, sc_neg_images)
 
                 self.loss_sum += sc_loss.item() 
-                self.correct_prediction_counts += correct_prediction
+                self.total_prediction_counts += total_prediction
+                self.correct_prediction_counts += correct_prediction.item()
                 self.test_iter += 1
 
         print('\n======test end======\n')
 
         ave_loss = self.loss_sum / self.test_iter
-        accuracy = self.correct_prediction_counts.item() / self.test_iter
+        accuracy = self.correct_prediction_counts / self.total_prediction_counts
         test_log = f'Loss: {ave_loss:.5f}, Accuracy: {accuracy *  100:.2f} %'
         with open('./test_log.txt', 'a') as f:
-            f.write(str(ave_loss) + '\n' + str(accuracy))
+            f.write(f'{ave_loss}/{accuracy}\n')
         print(test_log)
 
     def convert_image_list_to_tensor(self, image_list):
@@ -92,15 +96,12 @@ class Tester(object):
         neg_scores = self.model(neg_tensor)
         target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
 
-        print(pos_scores)
-        print(neg_scores)
-
         loss = self.loss_fn(pos_scores, neg_scores, target=target)
 
+        total_prediction_counts = pos_tensor.shape[0]
         comparison_result = pos_scores > neg_scores
         correct_prediction_counts = comparison_result.sum(dim=0)
-        print(correct_prediction_counts)
-        return loss, correct_prediction_counts
+        return loss, correct_prediction_counts, total_prediction_counts
             
     def make_pairs_scored_crops(self, data):
         image_name = data[0]

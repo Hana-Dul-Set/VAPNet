@@ -110,6 +110,8 @@ class Trainer(object):
             loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             self.loss_sum += total_loss.item() 
             self.train_iter += 1
+            with open('train_log.txt', 'a') as f:
+                f.write(f'{sc_loss.item() if sc_loss != None else 0.0:.5f}/{bc_loss.item() if bc_loss != None else 0.0:.5f}/{un_loss.item():.5f}/{total_loss.item():.5f}\n')
             print(loss_log)
             
             self.optimizer.zero_grad()
@@ -126,37 +128,6 @@ class Trainer(object):
             total_loss = None
 
         print('\n======train end======\n')
-
-    """
-    def calculate_pairwise_ranking_loss(self, pos_tensor, neg_tensor):
-        target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
-        loss = self.loss_fn(pos_tensor, neg_tensor, target=target)
-        return loss
-    """
-    """
-    def batch_process_csnet(self, pos_images, neg_images):
-        csnet_dataset = CSNetDataset(self.cfg, pos_images, neg_images)
-        cs_loader = DataLoader(dataset=csnet_dataset,
-                              batch_size=8,
-                              shuffle=False,
-                              num_workers=self.cfg.num_workers)
-        for index, (pos_data, neg_data) in enumerate(cs_loader):
-            pos_data = pos_data.to(self.device)
-            neg_data = neg_data.to(self.device)
-            pos_scores = self.model(pos_data)
-            neg_scores = self.model(neg_data)
-            print('pos:', pos_scores)
-            print('neg:', neg_scores)
-            loss = self.calculate_pairwise_ranking_loss(pos_scores, neg_scores)
-            
-            if index == 0:
-                sum_loss = loss
-            else:
-                sum_loss += loss
-            
-        ave_loss = sum_loss / csnet_dataset.__len__()
-        return ave_loss
-    """
 
     def convert_image_list_to_tensor(self, image_list):
         tensor = []
@@ -289,8 +260,8 @@ if __name__ == '__main__':
     cfg = Config()
 
     model = CSNet(cfg)
-    # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
-    # model.load_state_dict(torch.load(weight_file))
+    weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
+    model.load_state_dict(torch.load(weight_file))
 
     trainer = Trainer(model, cfg)
     trainer.run()
