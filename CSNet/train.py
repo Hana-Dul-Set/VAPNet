@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import os
 import time
+from torchvision.transforms import transforms
 
 from config import Config
 from csnet import CSNet
@@ -44,8 +45,8 @@ class Trainer(object):
         self.image_dir = self.cfg.image_dir
 
         self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(self.cfg)
-        self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        # self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
+        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_batch_size = self.cfg.scored_crops_batch_size
         self.bc_batch_size = self.cfg.best_crop_K
@@ -64,6 +65,12 @@ class Trainer(object):
         self.loss_sum = 0
         self.train_iter = 0
 
+        self.transformer = transforms.Compose([
+            transforms.Resize(self.cfg.image_size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
+        ])
+
 
     def training(self):
         self.model.train().to(self.device)
@@ -76,23 +83,30 @@ class Trainer(object):
             un_data_list = data[2]
 
             sc_pos_images, sc_neg_images = self.make_pairs_scored_crops(sc_data_list[0])
-            sc_loss = self.batch_process_csnet(sc_pos_images, sc_neg_images)
+            if len(sc_pos_images) == 0:
+                sc_loss = None
+            else:
+                sc_loss = self.calculate_pairwise_ranking_loss(sc_pos_images, sc_neg_images)
             
             bc_pos_images, bc_neg_images = self.make_pairs_perturbating(bc_data_list, labeled=True)
             if len(bc_pos_images) == 0:
                 bc_loss = None
             else:
-                bc_loss = self.batch_process_csnet(bc_pos_images, bc_neg_images)
+                bc_loss = self.calculate_pairwise_ranking_loss(bc_pos_images, bc_neg_images)
             
             un_pos_images, un_neg_images = self.make_pairs_perturbating(un_data_list, labeled=False)
-            un_loss = self.batch_process_csnet(un_pos_images, un_neg_images)
+            un_loss = self.calculate_pairwise_ranking_loss(un_pos_images, un_neg_images)
 
-            
-            if bc_loss == None:
+            if sc_loss == None and bc_loss == None:
+                total_loss = un_loss
+            elif bc_loss == None:
                 total_loss = un_loss + sc_loss
+            elif sc_loss == None:
+                total_loss = bc_loss + un_loss
             else:
                 total_loss = un_loss + bc_loss + sc_loss
 
+            total_loss = total_loss.clone().detach().requires_grad_(True)
             loss_log = f'L_SC: {sc_loss.item():.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             self.loss_sum += total_loss.item() 
             self.train_iter += 1
@@ -113,11 +127,13 @@ class Trainer(object):
 
         print('\n======train end======\n')
 
+    """
     def calculate_pairwise_ranking_loss(self, pos_tensor, neg_tensor):
         target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
         loss = self.loss_fn(pos_tensor, neg_tensor, target=target)
         return loss
-    
+    """
+    """
     def batch_process_csnet(self, pos_images, neg_images):
         csnet_dataset = CSNetDataset(self.cfg, pos_images, neg_images)
         cs_loader = DataLoader(dataset=csnet_dataset,
@@ -140,6 +156,26 @@ class Trainer(object):
             
         ave_loss = sum_loss / csnet_dataset.__len__()
         return ave_loss
+    """
+
+    def convert_image_list_to_tensor(self, image_list):
+        tensor = []
+        for image in image_list:
+            tensor.append(self.transformer(image))
+        tensor = torch.stack(tensor, dim=0)
+        return tensor
+
+    def calculate_pairwise_ranking_loss(self, pos_images, neg_images):
+        pos_tensor = self.convert_image_list_to_tensor(pos_images)
+        neg_tensor = self.convert_image_list_to_tensor(neg_images)
+        pos_tensor = self.model(pos_tensor.to(self.device))
+        neg_tensor = self.model(neg_tensor.to(self.device))
+        target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
+        loss = self.loss_fn(pos_tensor, neg_tensor, target=target)
+        del pos_tensor
+        del neg_tensor
+        del target
+        return loss
 
     def run(self):
         for epoch in range(self.epoch, self.max_epoch):

@@ -23,7 +23,7 @@ class Config:
         self.max_epoch = 100
 
         self.scored_crops_batch_size = 1
-        self.scored_crops_N = 7
+        self.scored_crops_N = 4
         self.best_crop_K = 8
         self.unlabeled_P = 8
 
