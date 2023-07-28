@@ -17,8 +17,8 @@ class Config:
         self.num_workers = 1
 
         self.pairwise_margin = 0.2
-        self.learning_rate = 2 * math.exp(-5)
-        self.weight_decay = 5 * math.exp(-4)
+        self.learning_rate = 2e-5
+        self.weight_decay = 5e-4
 
         self.max_epoch = 100
 

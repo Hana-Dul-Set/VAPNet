@@ -58,6 +58,7 @@ def get_shifted_image(image, bounding_box, allow_zero_pixel=False, option='csnet
 
 def get_zooming_out_image(image, bounding_box, allow_zero_pixel=False, option='csnet'):
     norm_box = normalize_box(bounding_box, image.size)
+    
     operator = update_operator('zoom_out', option)
     new_box = zooming_out(norm_box, operator)
 
@@ -73,7 +74,7 @@ def get_cropping_image(image, bounding_box, allow_zero_pixel=False, option='csne
     norm_box = normalize_box(bounding_box, image.size)
 
     operator = update_operator('crop', option)
-    new_box = zooming_out(norm_box, operator)
+    new_box = cropping(norm_box, operator)
 
     while allow_zero_pixel == False and is_not_in_image(new_box):
         return None
