@@ -45,8 +45,8 @@ class Trainer(object):
         self.image_dir = self.cfg.image_dir
 
         self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(self.cfg)
-        # self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
+        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_batch_size = self.cfg.scored_crops_batch_size
         self.bc_batch_size = self.cfg.best_crop_K
@@ -62,8 +62,12 @@ class Trainer(object):
         self.epoch = 0
         self.max_epoch = self.cfg.max_epoch
 
-        self.loss_sum = 0
+        self.total_loss_sum = 0
+        self.sc_loss_sum = 0
+        self.bc_loss_sum = 0
+        self.un_loss_sum = 0
         self.train_iter = 0
+        self.bc_iter = 0
 
         self.transformer = transforms.Compose([
             transforms.Resize(self.cfg.image_size),
@@ -105,13 +109,15 @@ class Trainer(object):
                 total_loss = bc_loss + un_loss
             else:
                 total_loss = un_loss + bc_loss + sc_loss
+                self.bc_iter += 1
 
             total_loss = total_loss.clone().detach().requires_grad_(True)
             loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
-            self.loss_sum += total_loss.item() 
+            self.total_loss_sum += total_loss.item() 
+            self.sc_loss_sum += sc_loss.item()
+            self.bc_loss_sum += bc_loss.item() if bc_loss != None else 0
+            self.un_loss_sum += un_loss.item()
             self.train_iter += 1
-            with open('train_log.txt', 'a') as f:
-                f.write(f'{sc_loss.item() if sc_loss != None else 0.0:.5f}/{bc_loss.item() if bc_loss != None else 0.0:.5f}/{un_loss.item():.5f}/{total_loss.item():.5f}\n')
             print(loss_log)
             
             self.optimizer.zero_grad()
@@ -132,6 +138,10 @@ class Trainer(object):
     def convert_image_list_to_tensor(self, image_list):
         tensor = []
         for image in image_list:
+            if image.split() == 1:
+                if image.mode != 'L':
+                    image = image.covert('L')
+                image.show()
             tensor.append(self.transformer(image))
         tensor = torch.stack(tensor, dim=0)
         return tensor
@@ -161,12 +171,19 @@ class Trainer(object):
             epoch_log = 'epoch: %d / %d, lr: %8f' % (self.epoch, self.max_epoch, self.optimizer.param_groups[0]['lr'])
             print(epoch_log)
             
-            accuracy_log = f'Ave Loss: {self.loss_sum / self.train_iter:.5f}'
+            accuracy_log = f'{self.sc_loss_sum / self.train_iter:.5f}/{self.bc_loss_sum / self.bc_iter:.5f}/{self.un_loss_sum / self.train_iter:.5f}/{self.total_loss_sum / self.train_iter:.5f}'
             print(accuracy_log)
+            with open('epoch_log.txt', 'a') as f:
+                f.write(accuracy_log + f"/{self.optimizer.param_groups[0]['lr']}\n")
 
             self.train_iter = 0
-            self.loss_sum = 0
-            test_while_training()
+            self.total_loss_sum = 0
+            self.sc_loss_sum = 0
+            self.bc_loss_sum = 0
+            self.un_loss_sum = 0
+            self.bc_iter = 0
+            if self.epoch % 5 == 0:
+                test_while_training()
             
     def make_pairs_scored_crops(self, data):
         image_name = data[0]
