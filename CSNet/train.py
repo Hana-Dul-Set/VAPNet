@@ -149,6 +149,7 @@ class Trainer(object):
                 image = rgb_image
             tensor.append(self.transformer(image))
         tensor = torch.stack(tensor, dim=0)
+        
         return tensor
 
     def calculate_pairwise_ranking_loss(self, pos_images, neg_images):
