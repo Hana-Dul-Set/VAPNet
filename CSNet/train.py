@@ -44,7 +44,6 @@ class Trainer(object):
 
         self.image_dir = self.cfg.image_dir
 
-        self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(self.cfg)
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
         # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
@@ -67,6 +66,7 @@ class Trainer(object):
         self.bc_loss_sum = 0
         self.un_loss_sum = 0
         self.train_iter = 0
+        self.sc_iter = 0
         self.bc_iter = 0
 
         self.transformer = transforms.Compose([
@@ -79,6 +79,7 @@ class Trainer(object):
     def training(self):
         self.model.train().to(self.device)
         # self.model.train()
+        self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(self.cfg)
         print('\n======train start======\n')
 
         for index, data in enumerate(zip(self.sc_loader, self.bc_loader, self.un_loader)):
@@ -105,16 +106,19 @@ class Trainer(object):
                 total_loss = un_loss
             elif bc_loss == None:
                 total_loss = un_loss + sc_loss
+                self.sc_iter += 1
             elif sc_loss == None:
                 total_loss = bc_loss + un_loss
+                self.bc_iter += 1
             else:
                 total_loss = un_loss + bc_loss + sc_loss
+                self.sc_iter += 1
                 self.bc_iter += 1
 
             total_loss = total_loss.clone().detach().requires_grad_(True)
             loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             self.total_loss_sum += total_loss.item() 
-            self.sc_loss_sum += sc_loss.item()
+            self.sc_loss_sum += sc_loss.item() if sc_loss != None else 0
             self.bc_loss_sum += bc_loss.item() if bc_loss != None else 0
             self.un_loss_sum += un_loss.item()
             self.train_iter += 1
@@ -138,10 +142,11 @@ class Trainer(object):
     def convert_image_list_to_tensor(self, image_list):
         tensor = []
         for image in image_list:
-            if image.split() == 1:
-                if image.mode != 'L':
-                    image = image.covert('L')
-                image.show()
+            # Grayscale to RGB
+            if len(image.getbands()) == 1:
+                rgb_image = Image.new("RGB", image.size)
+                rgb_image.paste(image, (0, 0, image.width, image.height))
+                image = rgb_image
             tensor.append(self.transformer(image))
         tensor = torch.stack(tensor, dim=0)
         return tensor
@@ -171,7 +176,7 @@ class Trainer(object):
             epoch_log = 'epoch: %d / %d, lr: %8f' % (self.epoch, self.max_epoch, self.optimizer.param_groups[0]['lr'])
             print(epoch_log)
             
-            accuracy_log = f'{self.sc_loss_sum / self.train_iter:.5f}/{self.bc_loss_sum / self.bc_iter:.5f}/{self.un_loss_sum / self.train_iter:.5f}/{self.total_loss_sum / self.train_iter:.5f}'
+            accuracy_log = f'{self.sc_loss_sum / self.sc_iter:.5f}/{self.bc_loss_sum / self.bc_iter:.5f}/{self.un_loss_sum / self.train_iter:.5f}/{self.total_loss_sum / self.train_iter:.5f}'
             print(accuracy_log)
             with open('epoch_log.txt', 'a') as f:
                 f.write(accuracy_log + f"/{self.optimizer.param_groups[0]['lr']}\n")
@@ -181,8 +186,9 @@ class Trainer(object):
             self.sc_loss_sum = 0
             self.bc_loss_sum = 0
             self.un_loss_sum = 0
+            self.sc_iter = 0
             self.bc_iter = 0
-            if self.epoch % 5 == 0:
+            if self.epoch % 10 == 0:
                 test_while_training()
             
     def make_pairs_scored_crops(self, data):
