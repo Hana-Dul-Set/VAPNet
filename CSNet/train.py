@@ -115,7 +115,6 @@ class Trainer(object):
                 self.sc_iter += 1
                 self.bc_iter += 1
 
-            total_loss = total_loss.clone().detach().requires_grad_(True)
             loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             self.total_loss_sum += total_loss.item() 
             self.sc_loss_sum += sc_loss.item() if sc_loss != None else 0
@@ -189,7 +188,7 @@ class Trainer(object):
             self.un_loss_sum = 0
             self.sc_iter = 0
             self.bc_iter = 0
-            if self.epoch % 10 == 0:
+            if self.epoch % 5 == 0:
                 test_while_training()
             
     def make_pairs_scored_crops(self, data):

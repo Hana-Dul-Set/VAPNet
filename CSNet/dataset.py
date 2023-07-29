@@ -20,13 +20,13 @@ class SCDataset(Dataset):
         
         if mode == 'train':
             self.annotation_path = os.path.join(self.dataset_path, 'crops_training_set.json')
-
+            self.random_crops_count = self.cfg.scored_crops_N       
+            
         if mode == 'test':
             self.annotation_path = os.path.join(self.dataset_path, 'crops_testing_set.json')
+            self.random_crops_count = self.cfg.test_crops_N
 
         self.image_list, self.data_list = self.build_data_list()
-
-        self.random_crops_count = self.cfg.scored_crops_N
 
     def __len__(self):
         return len(self.image_list)
@@ -111,26 +111,6 @@ class UNDataset(Dataset):
         for data in data_list:
             image_list.append(data['name'])
         return image_list
-    
-class CSNetDataset(Dataset):
-    def __init__(self, cfg, pos_images, neg_images) :
-        self.cfg = cfg
-        self.pos_list = pos_images
-        self.neg_list = neg_images
-        self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
-        ])
-
-    def __len__(self):
-        return len(self.pos_list)
-    
-    def __getitem__(self, index):
-        pos_tensor = self.transformer(self.pos_list[index])
-        neg_tensor = self.transformer(self.neg_list[index])
-        return pos_tensor, neg_tensor
-    
 
 if __name__ == '__main__':
     cfg = Config()

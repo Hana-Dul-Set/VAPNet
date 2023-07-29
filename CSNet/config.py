@@ -20,10 +20,11 @@ class Config:
         self.learning_rate = 2e-5
         self.weight_decay = 5e-4
 
-        self.max_epoch = 100
+        self.max_epoch = 100000
 
         self.scored_crops_batch_size = 1
-        self.scored_crops_N = 4
+        self.scored_crops_N = 7
+        self.test_crops_N = 8
         self.best_crop_K = 8
         self.unlabeled_P = 8
 

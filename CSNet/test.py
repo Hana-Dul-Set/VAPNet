@@ -32,8 +32,8 @@ class Tester(object):
         self.image_dir = self.cfg.image_dir
 
         self.sc_loader = build_dataloader(self.cfg)
-        # self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
+        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_batch_size = self.cfg.scored_crops_batch_size
 
