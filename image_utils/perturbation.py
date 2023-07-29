@@ -44,7 +44,7 @@ def shifting(box, operator):
     input = bounding_box_to_input(box)
     return perturbate(input, operator)
 
-def zooming_out(box, operator):
+def zooming(box, operator):
     input = bounding_box_to_input(box)
     return perturbate(input, operator)
 

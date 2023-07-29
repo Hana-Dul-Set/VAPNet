@@ -1,8 +1,11 @@
 import torch.nn as nn
 import torch
 import torchvision.models
-from config import Config
 import math
+import os
+from torchvision.transforms import transforms
+
+from CSNet.config import Config
 
 class CSNet(nn.Module):
     def __init__(self, cfg):
@@ -51,6 +54,16 @@ class CSNet(nn.Module):
             else:
                 spp = torch.cat((spp, x.view([num_sample, -1])), 1)
         return spp
+    
+def get_pretrained_CSNet():
+    cfg = Config()
+
+    model = CSNet(cfg)
+    model.eval()
+    # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
+    # model.load_state_dict(torch.load(weight_file))
+
+    return model
     
 if __name__ == '__main__':
     cfg = Config()

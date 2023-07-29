@@ -1,5 +1,4 @@
 import os
-import math
 
 class Config:
     def __init__(self):

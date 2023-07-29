@@ -3,7 +3,7 @@ import math
 import numpy as np
 import random
 
-from perturbation_csnet import shifting, zooming_out, cropping, rotation
+from image_utils.perturbation import shifting, zooming, cropping, rotation
 
 def is_not_in_image(boudning_box):
     x1, y1, x2, y2 = boudning_box
@@ -22,14 +22,31 @@ def update_operator(type, option='csnet'):
         if option == 'csnet':
             operator[0] = random.uniform(-0.4, 0.4)
             operator[1] = random.uniform(-0.4, 0.4)
-    elif type == 'zoom_out':
+        if option == 'vapnet':
+            horizon_or_vertical = random.randint(0, 1)
+            plus_or_minus = random.randint(0, 1)
+            operator[horizon_or_vertical] = -1 * plus_or_minus * random.uniform(0.05, 0.45)
+            
+    elif type == 'zoom':
         if option == 'csnet':
             operator[2] = random.uniform(0, 0.4)
+        if option == 'vapnet':
+            oz_range = [[-0.048, -0.310], [0.053, 0.818]]
+            zoom_in_or_out = random.randint(0, 1)
+            operator[2] = oz_range[zoom_in_or_out]
+
     elif type == 'crop':
         if option == 'csnet':
             operator[2] = random.uniform(math.sqrt(0.5), math.sqrt(0.8))
             operator[0] = random.uniform(-operator[2] / 2, operator[2] / 2)
             operator[1] = random.uniform(-operator[2] / 2, operator[2] / 2)
+
+    elif type == 'rotate':
+        if option == 'csnet':
+            operator[3] = random.uniform(-math.pi/4, math.pi/4)
+        if option == 'vapnet':
+            plus_or_minus = random.randint(0, 1)
+            operator[3] = -1 * plus_or_minus * random.uniform(math.pi/36, math.pi/4)
 
     return operator
 
@@ -42,10 +59,14 @@ def get_origin_box(norm_box, image_size):
     new_box = [int(x) for x in new_box]
     return new_box
 
-def get_shifted_image(image, bounding_box, allow_zero_pixel=False, option='csnet'):
+def get_shifted_image(image, bounding_box, allow_zero_pixel=False, option='csnet', mag=None, direction=None):
     norm_box = normalize_box(bounding_box, image.size)
     
     operator = update_operator('shift', option)
+    if mag != None:
+        operator = [0.0, 0.0, 0.0, 0.0]
+        operator[direction] = mag
+
     new_box = shifting(norm_box, operator)
     
     while allow_zero_pixel == False and is_not_in_image(new_box):
@@ -54,13 +75,19 @@ def get_shifted_image(image, bounding_box, allow_zero_pixel=False, option='csnet
     new_box = get_origin_box(new_box, image.size)
 
     new_image = image.crop(new_box)
-    return new_image
+    if option == 'csnet' or mag != None:
+        return new_image
+    if option == 'vapnet':
+        return new_image, operator
 
-def get_zooming_out_image(image, bounding_box, allow_zero_pixel=False, option='csnet'):
+def get_zooming_image(image, bounding_box, allow_zero_pixel=False, option='csnet', mag=None):
     norm_box = normalize_box(bounding_box, image.size)
     
-    operator = update_operator('zoom_out', option)
-    new_box = zooming_out(norm_box, operator)
+    operator = update_operator('zoom', option)
+    if mag != None:
+        operator[2] = mag
+
+    new_box = zooming(norm_box, operator)
 
     while allow_zero_pixel == False and is_not_in_image(new_box):
         return None
@@ -68,7 +95,11 @@ def get_zooming_out_image(image, bounding_box, allow_zero_pixel=False, option='c
     
 
     new_image = image.crop(new_box)
-    return new_image
+
+    if option == 'csnet' or mag != None:
+        return new_image
+    if option == 'vapnet':
+        return new_image, operator
 
 def get_cropping_image(image, bounding_box, allow_zero_pixel=False, option='csnet'):
     norm_box = normalize_box(bounding_box, image.size)
@@ -82,7 +113,9 @@ def get_cropping_image(image, bounding_box, allow_zero_pixel=False, option='csne
     new_box = get_origin_box(new_box, image.size)
 
     new_image = image.crop(new_box)
-    return new_image
+
+    if option == 'csnet':
+        return new_image
 
 def rotate_dot(x, y, oa):
     cos_a = math.cos(oa)
@@ -103,11 +136,12 @@ def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet
         return False
 
     # split cases
-    if option == 'csnet':
-        oa = random.uniform(-math.pi/4, math.pi/4)
-    elif option == 'augmentation':
-        oa = radian
+    operator = update_operator('rotate', option)
+    if radian != None:
+        operator = [0.0, 0.0, 0.0, 0.0]
+        operator[3] = radian
 
+    oa = operator[3]
     rotated_box_corners, radian = rotation(bounding_box, oa)
 
     # check the rotated image is in original image
@@ -131,7 +165,11 @@ def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet
     # make bounding box and crop
     bounding_box = [min(x[0] for x in rotated_box_corners), min(x[1] for x in rotated_box_corners), max(x[0] for x in rotated_box_corners), max(x[1] for x in rotated_box_corners)]
     rotated_image = rotated_rec_image.crop(bounding_box)
-    return rotated_image
+
+    if option != 'vapnet' or radian != None:
+        return rotated_image
+    else:
+        return rotated_image, operator
 
 def normalize_box(box, image_size):
     norm_box = box.copy()
@@ -159,7 +197,7 @@ if __name__ == '__main__':
     shifted_image = get_shifted_image(image, bounding_box, allow_zero_pixel)
     shifted_image.show()
 
-    zoomed_out_image = get_zooming_out_image(image, bounding_box, allow_zero_pixel)
+    zoomed_out_image = get_zooming_image(image, bounding_box, allow_zero_pixel)
     zoomed_out_image.show()
 
     cropped_image = get_cropping_image(image, bounding_box, allow_zero_pixel)

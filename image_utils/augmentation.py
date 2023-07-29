@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 import random, math
 
-from image_preprocess import get_rotated_image
+from image_utils.image_preprocess import get_rotated_image
 
 def change_proportion_to_zero(image, bounding_box):
 

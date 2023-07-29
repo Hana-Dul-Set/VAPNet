@@ -6,10 +6,6 @@ import json
 from config import Config
 import random
 
-from image_preprocess import get_cropping_image, get_zooming_out_image, get_shifted_image, get_rotated_image
-from augmentation import shift_borders, zoom_out_borders, rotation_borders
-
-
 # scored crops dataset
 class SCDataset(Dataset):
     def __init__(self, mode, cfg) :

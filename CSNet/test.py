@@ -8,9 +8,9 @@ import time
 from PIL import Image
 from torchvision.transforms import transforms
 
-from config import Config
-from csnet import CSNet
-from dataset import *
+from .config import Config
+from .csnet import CSNet
+from .dataset import *
 
 def not_convert_to_tesnor(batch):
         return batch

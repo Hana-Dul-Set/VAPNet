@@ -9,8 +9,8 @@ from torchvision.transforms import transforms
 from config import Config
 from csnet import CSNet
 from dataset import SCDataset, BCDataset, UNDataset, CSNetDataset
-from augmentation import *
-from image_preprocess import get_cropping_image, get_zooming_out_image, get_shifted_image, get_rotated_image
+from image_utils.augmentation import *
+from image_utils.image_preprocess import get_cropping_image, get_zooming_image, get_shifted_image, get_rotated_image
 from test import test_while_training
 
 def not_convert_to_tesnor(batch):
@@ -234,7 +234,7 @@ class Trainer(object):
             best_crop_bounding_box = [0, 0, image.size[0], image.size[1]]
             best_crop = image
 
-        func_list = [get_rotated_image, get_shifted_image, get_zooming_out_image, get_cropping_image]
+        func_list = [get_rotated_image, get_shifted_image, get_zooming_image, get_cropping_image]
         perturbate_func = random.choice(func_list)
 
         allow_zero_pixel = not labeled
