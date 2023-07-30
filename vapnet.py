@@ -4,9 +4,9 @@ import torchvision.models
 from config import Config
 import math
 
-class CSNet(nn.Module):
+class VAPNet(nn.Module):
     def __init__(self, cfg):
-        super(CSNet, self).__init__()
+        super(VAPNet, self).__init__()
         self.cfg = cfg
 
         self.backbone = self.build_backbone(pretrained=True)
@@ -39,11 +39,11 @@ class CSNet(nn.Module):
         spp = self.spatial_pyramid_pool(feature_map, feature_map.shape[0], [int(feature_map.size(2)),int(feature_map.size(3))],self.spp_pool_size)
         feature_vector = self.last_layer(spp)
 
-        suggestion_ouput = self.suggestion_output_layer(feature_vector)
-        adjustment_output = self.adjustment_output_layer(feature_vector)
-        magnitude_output = self.magnitude_output_layer(feature_vector)
+        suggestion_predictor = self.suggestion_output_layer(feature_vector)
+        adjustment_predictor = self.adjustment_output_layer(feature_vector)
+        magnitude_predictor = self.magnitude_output_layer(feature_vector)
 
-        return suggestion_ouput, adjustment_output, magnitude_output
+        return suggestion_predictor, adjustment_predictor, magnitude_predictor
     
     def build_backbone(self, pretrained):
         model = torchvision.models.mobilenet_v2(pretrained)
@@ -66,7 +66,7 @@ class CSNet(nn.Module):
     
 if __name__ == '__main__':
     cfg = Config()
-    model = CSNet(cfg)
+    model = VAPNet(cfg)
     x = torch.randn((1, 3, 299, 299))
     output = model(x)
     print(output)

@@ -9,11 +9,15 @@ class Config:
         self.data_dir = './data/annotation'
         self.weight_dir = './output/weight'
 
+        self.best_crop_data = os.path.join(self.data_dir, 'best_crop')
         self.unlabeled_data = os.path.join(self.data_dir, 'unlabeled_vapnet')
+
+        self.adjustment_count = 6
 
         self.gpu_id = 0
         self.num_workers = 1
 
+        self.batch_size = 16
         self.learning_rate = 2e-5
         self.weight_decay = 5e-4
 

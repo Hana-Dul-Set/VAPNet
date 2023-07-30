@@ -13,7 +13,7 @@ def is_not_in_image(boudning_box):
         return True
     return False
 
-def update_operator(type, option='csnet'):
+def update_operator(type, option='csnet', direction=None):
 
     # ox, oy, oz, oa
     operator = [0.0, 0.0, 0.0, 0.0]
@@ -23,9 +23,9 @@ def update_operator(type, option='csnet'):
             operator[0] = random.uniform(-0.4, 0.4)
             operator[1] = random.uniform(-0.4, 0.4)
         if option == 'vapnet':
-            horizon_or_vertical = random.randint(0, 1)
+            horizon_or_vertical = direction
             plus_or_minus = random.randint(0, 1)
-            operator[horizon_or_vertical] = -1 * plus_or_minus * random.uniform(0.05, 0.45)
+            operator[horizon_or_vertical] = -1 * (-1 if plus_or_minus else 1) * random.uniform(0.05, 0.45)
             
     elif type == 'zoom':
         if option == 'csnet':
@@ -46,7 +46,7 @@ def update_operator(type, option='csnet'):
             operator[3] = random.uniform(-math.pi/4, math.pi/4)
         if option == 'vapnet':
             plus_or_minus = random.randint(0, 1)
-            operator[3] = -1 * plus_or_minus * random.uniform(math.pi/36, math.pi/4)
+            operator[3] = -1 * (-1 if plus_or_minus else 1) * random.uniform(math.pi/36, math.pi/4)
 
     return operator
 
@@ -62,7 +62,7 @@ def get_origin_box(norm_box, image_size):
 def get_shifted_image(image, bounding_box, allow_zero_pixel=False, option='csnet', mag=None, direction=None):
     norm_box = normalize_box(bounding_box, image.size)
     
-    operator = update_operator('shift', option)
+    operator = update_operator('shift', option, direction)
     if mag != None:
         operator = [0.0, 0.0, 0.0, 0.0]
         operator[direction] = mag
@@ -127,7 +127,7 @@ def rotate_dot(x, y, oa):
     y = int(y)
     return x, y
 
-def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet', radian=None):
+def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet', input_radian=None):
 
     def is_not_in_image_rotate(corners, image_size):
         for point in corners:
@@ -137,9 +137,9 @@ def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet
 
     # split cases
     operator = update_operator('rotate', option)
-    if radian != None:
+    if input_radian != None:
         operator = [0.0, 0.0, 0.0, 0.0]
-        operator[3] = radian
+        operator[3] = input_radian
 
     oa = operator[3]
     rotated_box_corners, radian = rotation(bounding_box, oa)
@@ -166,7 +166,7 @@ def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet
     bounding_box = [min(x[0] for x in rotated_box_corners), min(x[1] for x in rotated_box_corners), max(x[0] for x in rotated_box_corners), max(x[1] for x in rotated_box_corners)]
     rotated_image = rotated_rec_image.crop(bounding_box)
 
-    if option != 'vapnet' or radian != None:
+    if option != 'vapnet' or input_radian != None:
         return rotated_image
     else:
         return rotated_image, operator

@@ -13,7 +13,7 @@ from image_utils.image_preprocess import get_shifted_image, get_zooming_image, g
 from CSNet.csnet import get_pretrained_CSNet
 
 # best crop dataset
-class LabeledDataset(Dataset):
+class BCDataset(Dataset):
     def __init__(self, mode, cfg) :
         self.cfg = cfg
 
@@ -56,11 +56,6 @@ class UnlabledDataset(Dataset):
             self.annotation_path = os.path.join(self.dataset_path, 'unlabeled_training_set.json')
 
         self.data_list = self.build_data_list()
-        self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
-        ])
 
     def __len__(self):
         return len(self.data_list)
@@ -69,7 +64,6 @@ class UnlabledDataset(Dataset):
         data = self.data_list[index]
         image_name = data['name']
         image = Image.open(os.path.join(self.image_dir, image_name))
-        image = self.transformer(image)
         suggestion_label = data['suggestion']
         adjustment_label = data['adjustment']
         magnitude_label = data['magnitude']
