@@ -8,7 +8,7 @@ from torchvision.transforms import transforms
 
 from config import Config
 from csnet import CSNet
-from dataset import SCDataset, BCDataset, UNDataset, CSNetDataset
+from dataset import SCDataset, BCDataset, UNDataset
 from image_utils.augmentation import *
 from image_utils.image_preprocess import get_cropping_image, get_zooming_image, get_shifted_image, get_rotated_image
 from test import test_while_training
@@ -68,6 +68,7 @@ class Trainer(object):
         self.train_iter = 0
         self.sc_iter = 0
         self.bc_iter = 0
+        self.un_iter = 0
 
         self.transformer = transforms.Compose([
             transforms.Resize(self.cfg.image_size),
@@ -102,18 +103,34 @@ class Trainer(object):
             un_pos_images, un_neg_images = self.make_pairs_perturbating(un_data_list, labeled=False)
             un_loss = self.calculate_pairwise_ranking_loss(un_pos_images, un_neg_images)
 
+            total_loss = 0
+            compare_loss = 0
+            if sc_loss != None:
+                total_loss += sc_loss
+                self.sc_iter += 1
+                compare_loss = sc_loss.item()
+            if bc_loss != None:
+                total_loss += bc_loss
+                self.bc_iter += 1
+                compare_loss = bc_loss.item()
+            if un_loss.item() > compare_loss:
+                total_loss += un_loss
+                self.un_iter += 1
+
+            """
             if sc_loss == None and bc_loss == None:
                 total_loss = un_loss
             elif bc_loss == None:
-                total_loss = un_loss + sc_loss
+                total_loss = sc_loss + un_loss
                 self.sc_iter += 1
             elif sc_loss == None:
                 total_loss = bc_loss + un_loss
                 self.bc_iter += 1
             else:
-                total_loss = un_loss + bc_loss + sc_loss
+                total_loss = sc_loss + bc_loss + un_loss
                 self.sc_iter += 1
                 self.bc_iter += 1
+            """
 
             loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             self.total_loss_sum += total_loss.item() 
@@ -188,8 +205,15 @@ class Trainer(object):
             self.un_loss_sum = 0
             self.sc_iter = 0
             self.bc_iter = 0
-            if self.epoch % 5 == 0:
+            if self.epoch % 1 == 0:
                 test_while_training()
+
+    def shuffle_two_lists_in_same_order(self, list1, list2):
+        combined_lists = list(zip(list1, list2))
+        random.shuffle(combined_lists)
+        shuffled_list1, shuffled_list2 = zip(*combined_lists)
+
+        return list(shuffled_list1), list(shuffled_list2)
             
     def make_pairs_scored_crops(self, data):
         image_name = data[0]
@@ -219,6 +243,9 @@ class Trainer(object):
 
             pos_images.append(augmented_pos_image)
             neg_images.append(augmented_neg_image)
+
+        if len(pos_images) != 0:
+            pos_images, neg_images = self.shuffle_two_lists_in_same_order(pos_images, neg_images)
 
         return pos_images, neg_images
 
@@ -262,6 +289,9 @@ class Trainer(object):
 
             pos_images.append(augmented_pos_image)
             neg_images.append(augmented_neg_image)
+
+        if len(pos_images) != 0:
+            pos_images, neg_images = self.shuffle_two_lists_in_same_order(pos_images, neg_images)
 
         return pos_images, neg_images
 
