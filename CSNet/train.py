@@ -54,10 +54,15 @@ class Trainer(object):
         self.iter = 0
 
         self.loss_fn = torch.nn.MarginRankingLoss(margin=self.cfg.pairwise_margin, reduction='mean')
+
         self.optimizer = optim.Adam(params=model.parameters(),
                                     lr=self.cfg.learning_rate,
                                     weight_decay=self.cfg.weight_decay)
-        
+        """
+        self.optimizer = optim.SGD(params=model.parameters(),
+                                   lr=self.cfg.learning_rate,
+                                   weight_decay=self.cfg.weight_decay)
+        """
         self.epoch = 0
         self.max_epoch = self.cfg.max_epoch
 
@@ -109,13 +114,14 @@ class Trainer(object):
                 total_loss += sc_loss
                 self.sc_iter += 1
                 compare_loss = sc_loss.item()
-            if bc_loss != None:
+            if False:
                 total_loss += bc_loss
                 self.bc_iter += 1
                 compare_loss = bc_loss.item()
-            if un_loss.item() > compare_loss:
-                total_loss += un_loss
-                self.un_iter += 1
+            """
+            total_loss += un_loss
+            self.un_iter += 1
+            """
 
             """
             if sc_loss == None and bc_loss == None:
@@ -171,8 +177,14 @@ class Trainer(object):
     def calculate_pairwise_ranking_loss(self, pos_images, neg_images):
         pos_tensor = self.convert_image_list_to_tensor(pos_images)
         neg_tensor = self.convert_image_list_to_tensor(neg_images)
+        tensor_concat = torch.cat((pos_tensor, neg_tensor), dim=0)
+        tensor_concat = tensor_concat.to(self.device)
+        """
         pos_tensor = self.model(pos_tensor.to(self.device))
         neg_tensor = self.model(neg_tensor.to(self.device))
+        """
+        tensor_concat = self.model(tensor_concat)
+        pos_tensor, neg_tensor = torch.split(tensor_concat, [tensor_concat.shape[0] // 2, tensor_concat.shape[0] // 2])
         target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
         loss = self.loss_fn(pos_tensor, neg_tensor, target=target)
         del pos_tensor
@@ -313,8 +325,8 @@ if __name__ == '__main__':
     cfg = Config()
 
     model = CSNet(cfg)
-    weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
-    model.load_state_dict(torch.load(weight_file))
+    # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
+    # model.load_state_dict(torch.load(weight_file))
 
     trainer = Trainer(model, cfg)
     trainer.run()
