@@ -15,7 +15,7 @@ class Config:
         self.gpu_id = 0
         self.num_workers = 1
 
-        self.pairwise_margin = 0.2
+        self.pairwise_margin = 0.3
         self.learning_rate = 2e-5
         self.weight_decay = 5e-4
 

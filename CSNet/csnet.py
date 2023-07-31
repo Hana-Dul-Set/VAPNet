@@ -5,7 +5,7 @@ import math
 import os
 from torchvision.transforms import transforms
 
-from CSNet.config import Config
+from config import Config
 
 class CSNet(nn.Module):
     def __init__(self, cfg):
@@ -18,7 +18,7 @@ class CSNet(nn.Module):
         
         self.last_layer = nn.Sequential(
             nn.Linear(38400, 1024),
-            nn.ReLU(),
+            # nn.ReLU(),
             nn.Linear(1024, 1024),
         )
 

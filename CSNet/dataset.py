@@ -6,6 +6,8 @@ import json
 from config import Config
 import random
 
+Image.MAX_IMAGE_PIXELS = None
+
 # scored crops dataset
 class SCDataset(Dataset):
     def __init__(self, mode, cfg) :
