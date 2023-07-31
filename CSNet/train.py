@@ -254,8 +254,8 @@ class Trainer(object):
             pos_images.append(pos_image)
             neg_images.append(neg_image)
 
-            pos_images.append(augmented_pos_image)
-            neg_images.append(augmented_neg_image)
+            # pos_images.append(augmented_pos_image)
+            # neg_images.append(augmented_neg_image)
 
         if len(pos_images) != 0:
             pos_images, neg_images = self.shuffle_two_lists_in_same_order(pos_images, neg_images)
