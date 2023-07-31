@@ -179,6 +179,7 @@ class Trainer(object):
         neg_tensor = self.convert_image_list_to_tensor(neg_images)
         tensor_concat = torch.cat((pos_tensor, neg_tensor), dim=0)
         tensor_concat = tensor_concat.to(self.device)
+        
         """
         pos_tensor = self.model(pos_tensor.to(self.device))
         neg_tensor = self.model(neg_tensor.to(self.device))
