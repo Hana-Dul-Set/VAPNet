@@ -18,8 +18,10 @@ class CSNet(nn.Module):
         
         self.last_layer = nn.Sequential(
             nn.Linear(38400, 1024),
+            nn.BatchNorm1d(1024),
             # nn.ReLU(),
             nn.Linear(1024, 1024),
+            nn.BatchNorm1d(1024),
         )
 
         self.output_layer = nn.Sequential(
@@ -30,7 +32,6 @@ class CSNet(nn.Module):
 
     def forward(self, image):
         feature_map = self.backbone(image)
-        print(feature_map.shape)
         spp = self.spatial_pyramid_pool(feature_map, feature_map.shape[0], [int(feature_map.size(2)),int(feature_map.size(3))],self.spp_pool_size)
         feature_vector = self.last_layer(spp)
 

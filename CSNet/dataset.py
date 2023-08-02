@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 from PIL import Image
+import PIL
 from torchvision.transforms import transforms
 import os
 import json
@@ -30,20 +31,32 @@ class SCDataset(Dataset):
         return len(self.image_list)
     
     def __getitem__(self, index):
-        image_name = self.image_list[index]
+        image = self.image_list[index]
         crops_list = self.data_list[index]
         selected_crops_list = random.sample(crops_list, self.random_crops_count)
-        return image_name, selected_crops_list
+        return image, selected_crops_list
 
     def build_data_list(self):
+        def horizontal_flip_bounding_box(image_size, data):
+            bounding_box = data['crop'].copy()
+            temp = bounding_box[2]
+            bounding_box[2] = image_size[0] - bounding_box[0]
+            bounding_box[0] = image_size[0] - temp
+            data['crop'] = bounding_box
+            return data
+
         data_list = []
         with open(self.annotation_path, 'r') as f:
             data_list = json.load(f)
         image_list = []
         crops_list = []
         for data in data_list:
-            image_list.append(data['name'])
+            image_src = Image.open(os.path.join(self.image_dir, data['name']))
+            image_filped = image_src.transpose(PIL.Image.FLIP_LEFT_RIGHT)
+            image_list.append(image_src)
+            image_list.append(image_filped)
             crops_list.append(data['crops'])
+            crops_list.append([horizontal_flip_bounding_box(image_src.size, x.copy()) for x in data['crops']])
         return image_list, crops_list
 
 # best crop dataset
@@ -115,6 +128,4 @@ if __name__ == '__main__':
 
     idx = 0
     dataset = SCDataset('train', cfg)
-    # make_pairs_scored_crops(dataset.__getitem__(0))
-    dataset = UNDataset('train', cfg)
-    print(dataset.__getitem__(idx))    
+    print(dataset.__getitem__(0), dataset.__getitem__(1))

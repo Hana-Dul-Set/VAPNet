@@ -7,6 +7,7 @@ from tqdm import tqdm
 import time
 from PIL import Image
 from torchvision.transforms import transforms
+import wandb
 
 from config import Config
 from csnet import CSNet
@@ -74,6 +75,7 @@ class Tester(object):
         ave_loss = self.loss_sum / self.test_iter
         accuracy = self.correct_prediction_counts / self.total_prediction_counts
         test_log = f'Loss: {ave_loss:.5f}, Accuracy: {accuracy *  100:.2f} %'
+        wandb.log({"test_loss": ave_loss, "accuracy": accuracy})
         with open('./test_log.txt', 'a') as f:
             f.write(f'{ave_loss}/{accuracy}\n')
         print(test_log)
@@ -92,9 +94,15 @@ class Tester(object):
         pos_tensor = pos_tensor.to(self.device)
         neg_tensor = neg_tensor.to(self.device)
 
+        """
         pos_scores = self.model(pos_tensor)
         neg_scores = self.model(neg_tensor)
-        target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
+        """
+        pos_scores = [self.model(x.unsqueeze(0)) for x in pos_tensor]
+        neg_scores = [self.model(x.unsqueeze(0)) for x in neg_tensor]
+        pos_scores = torch.cat(pos_scores, dim=0)
+        neg_scores = torch.cat(neg_scores, dim=0)
+        target = torch.ones((pos_scores.shape[0], 1)).to(self.device)
 
         loss = self.loss_fn(pos_scores, neg_scores, target=target)
 
@@ -104,10 +112,8 @@ class Tester(object):
         return loss, correct_prediction_counts, total_prediction_counts
             
     def make_pairs_scored_crops(self, data):
-        image_name = data[0]
+        image = data[0]
         crops_list = data[1]
-
-        image = Image.open(os.path.join(self.image_dir, image_name))
 
         # sort in descending order by score
         sorted_crops_list = sorted(crops_list, key = lambda x: -x['score'])
@@ -143,9 +149,25 @@ def test_while_training():
 if __name__ == '__main__':
     cfg = Config()
 
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="my-awesome-project",
+        
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": cfg.learning_rate,
+        "architecture": "CNN",
+        "dataset": "SC_dataset",
+        "epochs": cfg.max_epoch,
+        "memo": "failed"
+        }
+    )
+
     model = CSNet(cfg)
     weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     model.load_state_dict(torch.load(weight_file))
 
     tester = Tester(model, cfg)
     tester.run()
+
+    wandb.finish()
