@@ -11,8 +11,10 @@ class Config:
 
         self.best_crop_data = os.path.join(self.data_dir, 'best_crop')
         self.unlabeled_data = os.path.join(self.data_dir, 'unlabeled_vapnet')
+        self.labeled_data = os.path.join(self.data_dir, 'labeled_vapnet')
 
         self.adjustment_count = 6
+        self.fpr_limit = 0.9
 
         self.gpu_id = 0
         self.num_workers = 1

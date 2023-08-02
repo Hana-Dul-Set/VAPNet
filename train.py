@@ -100,6 +100,8 @@ class Trainer(object):
             suggestion_list = l_suggestion_label_list + ul_suggestion_label_list
             adjustment_list = l_adjustment_label_list + ul_adjustment_label_list
             magnitude_list = l_magnitude_label_list + ul_magnitude_label_list
+            print(suggestion_list)     
+
 
             # shuffle
             combined_list = list(zip(image_list, suggestion_list, adjustment_list, magnitude_list))
@@ -108,13 +110,14 @@ class Trainer(object):
             
             # model inference
             predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(self.convert_image_list_to_tensor(image_list))
-
             suggested_adjustment_index = [i for i in range(len(suggestion_list)) if suggestion_list[i] == 1]
-            suggestion_list = torch.tensor(suggestion_list, dtype=torch.float32).unsqueeze(1).to(self.device)            
+            suggestion_list = torch.tensor(suggestion_list).to(self.device)       
             suggestion_loss = self.suggestion_loss_fn(suggestion_list, predicted_suggestion)
 
             # there are no suggestion cases
             if len(suggested_adjustment_index) == 0:
+                train_log = f'suggestion loss:{suggestion_loss:.5f}'
+                print(train_log)
                 self.optimizer.zero_grad()
                 suggestion_loss.backward()
                 self.optimizer.step()
@@ -126,8 +129,8 @@ class Trainer(object):
             predicted_adjustment = torch.index_select(predicted_adjustment, 0, suggested_adjustment_index)
             predicted_magnitude = torch.index_select(predicted_magnitude, 0, suggested_adjustment_index)
 
-            adjustment_list = torch.tensor(adjustment_list, dtype=torch.float32).to(self.device)
-            magnitude_list = torch.tensor(magnitude_list, dtype=torch.float32).to(self.device)
+            adjustment_list = torch.tensor(adjustment_list).to(self.device)
+            magnitude_list = torch.tensor(magnitude_list).to(self.device)
 
             # remove no-suggestion cases
             adjustment_list = torch.index_select(adjustment_list, 0, suggested_adjustment_index)
@@ -137,7 +140,9 @@ class Trainer(object):
             magnitude_loss = self.magnitude_loss_fn(magnitude_list, predicted_magnitude)
 
             total_loss = suggestion_loss + adjustment_loss + magnitude_loss
-            
+            train_log = f'suggestion loss:{suggestion_loss:.5f}/adjustment loss:{adjustment_loss:.5f}/magnitude loss:{magnitude_loss:.5f}/total loss:{total_loss:.5f}'
+            print(train_log)
+
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()
@@ -197,22 +202,22 @@ class Trainer(object):
             return None
         perturbated_image, operator = output
     
-        suggestion_label = 1
+        suggestion_label = [1.0]
         adjustment_index = -1
-        adjustment_label = [0] * self.adjustment_count
-        magnitude_label = [0] * self.adjustment_count
+        adjustment_label = [0.0] * self.adjustment_count
+        magnitude_label = [0.0] * self.adjustment_count
 
         if func_choice == 0:
             adjustment_index = 0 if operator[0] < 0 else 1
-            adjustment_label[adjustment_index] = 1
+            adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = -operator[0]
         if func_choice == 1:
             adjustment_index = 2 if operator[1] < 0 else 3
-            adjustment_label[adjustment_index] = 1
+            adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = -operator[1]
         if func_choice == 2:
             adjustment_index = 4 if operator[3] < 0 else 5
-            adjustment_label[adjustment_index] = 1
+            adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = -operator[3]
 
         return perturbated_image, suggestion_label, adjustment_label, magnitude_label
@@ -239,15 +244,15 @@ class Trainer(object):
         adjustment_label_list = []
         magnitude_label_list = []
 
-        adjustment_label = [0] * self.adjustment_count
-        magnitude_label = [0] * self.adjustment_count
+        adjustment_label = [0.0] * self.adjustment_count
+        magnitude_label = [0.0] * self.adjustment_count
         for data in bc_data_list:
             image_name = data[0]
             best_crop_bounding_box = data[1]
             image = Image.open(os.path.join(self.image_dir, image_name))
             best_crop = image.crop(best_crop_bounding_box)
             image_list.append(best_crop)
-            suggestion_label_list.append(0)
+            suggestion_label_list.append([0.0])
             adjustment_label_list.append(adjustment_label)
             magnitude_label_list.append(magnitude_label)
 
