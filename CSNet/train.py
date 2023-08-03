@@ -36,7 +36,7 @@ def build_dataloader(cfg):
                               shuffle=True,
                               collate_fn=not_convert_to_tesnor,
                               num_workers=cfg.num_workers)
-    return sc_loader
+    # return sc_loader
     return sc_loader, bc_loader, un_loader
 
 class Trainer(object):
@@ -53,7 +53,7 @@ class Trainer(object):
         self.bc_batch_size = self.cfg.best_crop_K
         self.un_batch_size = self.cfg.unlabeled_P
         
-        self.iter = 0
+        self.train_iter = 0
         '''
         diff > 0.3:
             margin_loss * 1
@@ -85,16 +85,17 @@ class Trainer(object):
         self.epoch = 0
         self.max_epoch = self.cfg.max_epoch
         
-        self.sc_loader = build_dataloader(cfg)
+        # self.sc_loader = build_dataloader(cfg)
+        self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(cfg)
 
         self.total_loss_sum = 0
         self.sc_loss_sum = 0
         self.bc_loss_sum = 0
         self.un_loss_sum = 0
-        self.train_iter = 0
-        self.sc_iter = 0
-        self.bc_iter = 0
-        self.un_iter = 0
+        self.train_iter_count = 0
+        self.sc_iter_count = 0
+        self.bc_iter_count = 0
+        self.un_iter_count = 0
 
         self.transformer = transforms.Compose([
             transforms.Resize(self.cfg.image_size),
@@ -107,15 +108,15 @@ class Trainer(object):
         # self.model.train()
         # self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(self.cfg)
         print('\n======train start======\n')
-
+        bc_iter = iter(self.bc_loader)
+        un_iter = iter(self.un_loader)
         for index, data in enumerate(self.sc_loader):
             self.model.train().to(self.device)
             sc_data_list = data
-            """
-            bc_data_list = data[1]
-            un_data_list = data[2]
-            """
-
+            
+            bc_data_list = next(bc_iter)
+            un_data_list = next(un_iter)
+            
             sc_pos_images, sc_neg_images = self.make_pairs_scored_crops(sc_data_list[0])
             
             if len(sc_pos_images) == 0:
@@ -123,7 +124,7 @@ class Trainer(object):
             else:
                 sc_loss = self.calculate_pairwise_ranking_loss(sc_pos_images, sc_neg_images)
             
-            """
+            
             bc_pos_images, bc_neg_images = self.make_pairs_perturbating(bc_data_list, labeled=True)
             if len(bc_pos_images) == 0:
                 bc_loss = None
@@ -132,52 +133,45 @@ class Trainer(object):
             
             un_pos_images, un_neg_images = self.make_pairs_perturbating(un_data_list, labeled=False)
             un_loss = self.calculate_pairwise_ranking_loss(un_pos_images, un_neg_images)
-            """
+            
             
             if sc_loss != None:
-                self.sc_iter += 1
-            if False:
+                total_loss = sc_loss
+                self.sc_iter_count += 1
+            if bc_loss != None:
                 total_loss += bc_loss
-                self.bc_iter += 1
-                compare_loss = bc_loss.item()
-            """
+                self.bc_iter_count += 1
+            
             total_loss += un_loss
-            self.un_iter += 1
-            """
-
-            """
-            if sc_loss == None and bc_loss == None:
-                total_loss = un_loss
-            elif bc_loss == None:
-                total_loss = sc_loss + un_loss
-                self.sc_iter += 1
-            elif sc_loss == None:
-                total_loss = bc_loss + un_loss
-                self.bc_iter += 1
-            else:
-                total_loss = sc_loss + bc_loss + un_loss
-                self.sc_iter += 1
-                self.bc_iter += 1
-            """
+            self.un_iter_count += 1
 
             # loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
             
             # self.total_loss_sum += total_loss.item() 
             self.sc_loss_sum += sc_loss.item() if sc_loss != None else 0
-            print(sc_loss.item() if sc_loss != None else -1)
-            """
+            # print(sc_loss.item() if sc_loss != None else -1)
+            
             self.bc_loss_sum += bc_loss.item() if bc_loss != None else 0
             self.un_loss_sum += un_loss.item()
-            """
+            
             self.train_iter += 1
             # print(loss_log)
             
             self.optimizer.zero_grad()
-            sc_loss.backward()
+            total_loss.backward()
             self.optimizer.step()
+
             if self.train_iter % 20 == 0:
-                wandb.log({"train_loss": self.sc_loss_sum / 20})
+                ave_sc_loss = self.sc_loss_sum / self.sc_iter_count
+                ave_bc_loss = self.bc_loss_sum / self.bc_iter_count
+                ave_un_loss = self.un_loss_sum / self.un_iter_count
+                wandb.log({"sc_loss": ave_sc_loss, "bc_loss": ave_bc_loss, "un_loss": ave_un_loss})
                 self.sc_loss_sum = 0
+                self.bc_loss_sum = 0
+                self.un_loss_sum = 0
+                self.sc_iter_count = 0
+                self.bc_iter_count = 0
+                self.un_iter_count = 0
             if self.train_iter % 5000 == 0:
                 checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
                 torch.save(self.model.state_dict(), checkpoint_path)
@@ -187,7 +181,6 @@ class Trainer(object):
             del sc_loss
             del bc_loss
             del un_loss
-            
             del total_loss
             sc_loss = None
             bc_loss = None
@@ -300,8 +293,8 @@ class Trainer(object):
             pos_images.append(pos_image)
             neg_images.append(neg_image)
 
-            # pos_images.append(augmented_pos_image)
-            # neg_images.append(augmented_neg_image)
+            pos_images.append(augmented_pos_image)
+            neg_images.append(augmented_neg_image)
 
         if len(pos_images) != 0:
             pos_images, neg_images = self.shuffle_two_lists_in_same_order(pos_images, neg_images)
@@ -373,15 +366,15 @@ if __name__ == '__main__':
 
     wandb.init(
         # set the wandb project where this run will be logged
-        project="my-awesome-project",
+        project="three_data_loader",
         
         # track hyperparameters and run metadata
         config={
         "learning_rate": cfg.learning_rate,
         "architecture": "CNN",
-        "dataset": "SC_dataset",
+        "dataset": "SC/BC/UN",
         "epochs": cfg.max_epoch,
-        "memo": "failed"
+        "memo": "None"
         }
     )
 
