@@ -197,6 +197,11 @@ def get_shifted_box(image, bounding_box_corners, mag=None, direction=None):
 
 def get_rotated_box(bounding_box, input_radian=None):
 
+    min_x = min(x[0] for x in bounding_box)
+    max_x = max(x[0] for x in bounding_box)
+    min_y = min(x[1] for x in bounding_box)
+    max_y = max(x[1] for x in bounding_box)
+    bounding_box = [(min_x + max_x) // 2, (min_y + max_y) // 2, (max_x - min_x), (max_y - min_y)]
     operator = [0.0, 0.0, 0.0, 0.0]
     operator[3] = input_radian
 
