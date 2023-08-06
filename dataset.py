@@ -102,6 +102,10 @@ class LabledDataset(Dataset):
         data = self.data_list[index]
         image_name = data['name']
         image = Image.open(os.path.join(self.image_dir, image_name))
+        if len(image.getbands()) == 1:
+            rgb_image = Image.new("RGB", image.size)
+            rgb_image.paste(image, (0, 0, image.width, image.height))
+            image = rgb_image
         transformed_image = self.transformer(image)
         bounding_box = torch.tensor(data['bounding_box'])
         perturbated_bounding_box = torch.tensor(data['perturbated_bounding_box'])

@@ -14,7 +14,7 @@ class Config:
         self.labeled_data = os.path.join(self.data_dir, 'labeled_vapnet')
 
         self.adjustment_count = 6
-        self.fpr_limit = 0.9
+        self.fpr_limit = 0.3
 
         self.gpu_id = 0
         self.num_workers = 1
@@ -25,6 +25,6 @@ class Config:
 
         self.max_epoch = 100
 
-        self.image_size = (299, 299)
+        self.image_size = (224, 224)
         self.mean = [0.485, 0.456, 0.406]
         self.std = [0.229, 0.224, 0.225]

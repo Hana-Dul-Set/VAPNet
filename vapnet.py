@@ -16,8 +16,10 @@ class VAPNet(nn.Module):
         
         self.last_layer = nn.Sequential(
             nn.Linear(38400, 1024),
-            nn.ReLU(),
+            nn.BatchNorm1d(1024),
+            # nn.ReLU(),
             nn.Linear(1024, 1024),
+            nn.BatchNorm1d(1024),
         )
 
         self.suggestion_output_layer = nn.Sequential(
@@ -54,9 +56,13 @@ class VAPNet(nn.Module):
     # parameter: tensor, batch_size, tensor width and height, spp pool size
     def spatial_pyramid_pool(self, previous_conv, num_sample, previous_conv_size, out_pool_size):
         for i in range(len(out_pool_size)):
+            """
             h_wid = int(math.ceil(previous_conv_size[0] / out_pool_size[i]))
             w_wid = int(math.ceil(previous_conv_size[1] / out_pool_size[i]))
             maxpool = nn.MaxPool2d((h_wid, w_wid), stride=(h_wid, w_wid))
+            x = maxpool(previous_conv)
+            """
+            maxpool = nn.AdaptiveMaxPool2d((out_pool_size[i], out_pool_size[i]))
             x = maxpool(previous_conv)
             if i == 0:
                 spp = x.view([num_sample, -1])
@@ -67,7 +73,7 @@ class VAPNet(nn.Module):
 if __name__ == '__main__':
     cfg = Config()
     model = VAPNet(cfg)
-    x = torch.randn((1, 3, 299, 299))
+    x = torch.randn((1, 3, 224, 224))
     output = model(x)
     print(output)
     print(output[0].item())
