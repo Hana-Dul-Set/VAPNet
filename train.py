@@ -71,12 +71,14 @@ class Trainer(object):
         # self.model.train()
         self.bc_loader, self.unlabeled_loader = build_dataloader(self.cfg)
         print('\n======train start======\n')
-
-        for index, data in enumerate(zip(self.bc_loader, self.unlabeled_loader)):
+        bc_iter = iter(self.bc_loader)
+        for index, data in enumerate(self.unlabeled_loader):
             self.train_iter += 1
-
-            bc_data_list = data[0]
-            unlabeled_data_list = data[1]
+            try:
+                bc_data_list = next(bc_iter)
+            except:
+                bc_iter = iter(self.bc_loader)
+            unlabeled_data_list = data
 
             # get randomly perturbated image and label for suggestion case
             l_image_list, l_suggestion_label_list, l_adjustment_label_list, l_magnitude_label_list = self.get_labeled_data_list(bc_data_list)

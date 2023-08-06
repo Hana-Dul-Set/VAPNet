@@ -53,7 +53,7 @@ class CSNet(nn.Module):
             maxpool = nn.MaxPool2d((h_wid, w_wid), stride=(h_wid, w_wid))
             x = maxpool(previous_conv)
             """
-            maxpool = nn.AdaptiveAvgPool2d((out_pool_size[i], out_pool_size[i]))
+            maxpool = nn.AdaptiveMaxPool2d((out_pool_size[i], out_pool_size[i]))
             x = maxpool(previous_conv)
             if i == 0:
                 spp = x.view([num_sample, -1])
