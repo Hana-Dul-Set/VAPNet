@@ -11,7 +11,7 @@ import wandb
 
 from config import Config
 from csnet import CSNet
-from dataset import *
+from dataset import SCDataset
 
 def not_convert_to_tesnor(batch):
         return batch
