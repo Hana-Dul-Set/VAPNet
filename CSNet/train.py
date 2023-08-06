@@ -113,9 +113,14 @@ class Trainer(object):
         for index, data in enumerate(self.sc_loader):
             self.model.train().to(self.device)
             sc_data_list = data
-            
-            bc_data_list = next(bc_iter)
-            un_data_list = next(un_iter)
+            try:
+                bc_data_list = next(bc_iter)
+            except:
+                bc_iter = iter(self.bc_loader)
+            try:
+                un_data_list = next(un_iter)
+            except:
+                un_iter = iter(self.un_loader)
             
             sc_pos_images, sc_neg_images = self.make_pairs_scored_crops(sc_data_list[0])
             
@@ -134,9 +139,9 @@ class Trainer(object):
             un_pos_images, un_neg_images = self.make_pairs_perturbating(un_data_list, labeled=False)
             un_loss = self.calculate_pairwise_ranking_loss(un_pos_images, un_neg_images)
             
-            
+            total_loss = 0
             if sc_loss != None:
-                total_loss = sc_loss
+                total_loss += sc_loss
                 self.sc_iter_count += 1
             if bc_loss != None:
                 total_loss += bc_loss
@@ -145,7 +150,7 @@ class Trainer(object):
             total_loss += un_loss
             self.un_iter_count += 1
 
-            # loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}, Total Loss: {total_loss.item():.5f}'
+            loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}'
             
             # self.total_loss_sum += total_loss.item() 
             self.sc_loss_sum += sc_loss.item() if sc_loss != None else 0
@@ -155,7 +160,7 @@ class Trainer(object):
             self.un_loss_sum += un_loss.item()
             
             self.train_iter += 1
-            # print(loss_log)
+            print(loss_log)
             
             self.optimizer.zero_grad()
             total_loss.backward()
@@ -313,7 +318,8 @@ class Trainer(object):
             best_crop_bounding_box = [0, 0, image.size[0], image.size[1]]
             best_crop = image
 
-        func_list = [get_rotated_image, get_shifted_image, get_zooming_image, get_cropping_image]
+        # func_list = [get_rotated_image, get_shifted_image, get_zooming_image, get_cropping_image]
+        func_list = [get_shifted_image, get_zooming_image, get_cropping_image]
         perturbate_func = random.choice(func_list)
 
         allow_zero_pixel = not labeled
@@ -350,7 +356,8 @@ class Trainer(object):
     def augment_pair(self, image_pair, labeled=True):
         pos_image = image_pair[0]
         neg_image = image_pair[1]
-        func_list = [shift_borders, zoom_out_borders, rotation_borders]
+        # func_list = [shift_borders, zoom_out_borders, rotation_borders]
+        func_list = [shift_borders, zoom_out_borders]
         augment_func = random.choice(func_list)
         if labeled:
             augment_pos_image = augment_func(pos_image)
@@ -379,8 +386,8 @@ if __name__ == '__main__':
     )
 
     model = CSNet(cfg)
-    # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
-    # model.load_state_dict(torch.load(weight_file))
+    weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
+    model.load_state_dict(torch.load(weight_file))
 
     trainer = Trainer(model, cfg)
     trainer.run()
