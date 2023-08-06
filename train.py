@@ -112,12 +112,17 @@ class Trainer(object):
             
             # model inference
             predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(self.convert_image_list_to_tensor(image_list))
-            suggested_adjustment_index = [i for i in range(len(suggestion_list)) if suggestion_list[i] == 1]
+
+            # calculate suggestion loss using BCELoss
             suggestion_list = torch.tensor(suggestion_list).to(self.device)       
             suggestion_loss = self.suggestion_loss_fn(suggestion_list, predicted_suggestion)
+            self.suggestion_loss_sum += suggestion_loss.item()
 
-            # there are no suggestion cases
-            if len(suggested_adjustment_index) == 0:
+            # filter no suggestion cases
+            suggested_index = [i for i in range(len(suggestion_list)) if suggestion_list[i] == 1]
+            
+            # there are only no suggestion cases
+            if len(suggested_index) == 0:
                 train_log = f'suggestion loss:{suggestion_loss:.5f}'
                 print(train_log)
                 self.optimizer.zero_grad()
@@ -127,24 +132,30 @@ class Trainer(object):
 
             self.suggested_case_iter += 1
 
-            suggested_adjustment_index = torch.tensor(suggested_adjustment_index).to(self.device)
-            predicted_adjustment = torch.index_select(predicted_adjustment, 0, suggested_adjustment_index)
-            predicted_magnitude = torch.index_select(predicted_magnitude, 0, suggested_adjustment_index)
-
+            suggested_index = torch.tensor(suggested_index).to(self.device)
             adjustment_list = torch.tensor(adjustment_list).to(self.device)
             magnitude_list = torch.tensor(magnitude_list).to(self.device)
 
             # remove no-suggestion cases
-            adjustment_list = torch.index_select(adjustment_list, 0, suggested_adjustment_index)
-            magnitude_list = torch.index_select(magnitude_list, 0, suggested_adjustment_index)
+            predicted_adjustment = torch.index_select(predicted_adjustment, dim=0, index=suggested_index)
+            predicted_magnitude = torch.index_select(predicted_magnitude, dim=0, index=suggested_index)
+            adjustment_list = torch.index_select(adjustment_list, dim=0, index=suggested_index)
+            magnitude_list = torch.index_select(magnitude_list, dim=0, index=suggested_index)
 
+            # calculate adjust loss using CrossEntropyLoss
             adjustment_loss = self.adjustment_loss_fn(adjustment_list, predicted_adjustment)
+
+            # calculate magnitude loss using L1Loss
             magnitude_loss = self.magnitude_loss_fn(magnitude_list, predicted_magnitude)
 
             total_loss = suggestion_loss + adjustment_loss + magnitude_loss
-            train_log = f'suggestion loss:{suggestion_loss:.5f}/adjustment loss:{adjustment_loss:.5f}/magnitude loss:{magnitude_loss:.5f}/total loss:{total_loss:.5f}'
+            train_log = f'suggestion loss:{suggestion_loss.item():.5f}/adjustment loss:{adjustment_loss.item():.5f}/magnitude loss:{magnitude_loss.item():.5f}/total loss:{total_loss:.5f}'
             print(train_log)
 
+            self.adjustment_loss_sum += adjustment_loss.item()
+            self.magnitude_loss_sum += magnitude_loss.item()
+
+            # back propagation
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()

@@ -65,8 +65,6 @@ class Tester(object):
         print('\n======test start======\n')
         with torch.no_grad():
             for index, data in tqdm(enumerate(self.data_loader), total=self.data_length):
-                if index == 1:
-                    break
                 # data split
                 image = data[0].to(self.device)
                 gt_bounding_box = data[1].tolist()
@@ -156,8 +154,8 @@ class Tester(object):
 
     def calculate_suggestion_accuracy(self, gt_suggestion, predicted_suggestion):
         def find_idx_for_fpr(fpr):
-            idx = (np.abs(fpr - self.fpr_limit)).argmin()
-            return idx
+            idices = np.where(np.abs(fpr - self.fpr_limit) == np.min(np.abs(fpr - self.fpr_limit)))
+            return np.max(idices)
         gt_suggestion = gt_suggestion
         predicted_suggestion = predicted_suggestion.to('cpu')
         fpr, tpr, cut = roc_curve(gt_suggestion, predicted_suggestion)
@@ -186,7 +184,8 @@ class Tester(object):
                 return np.array(self.adjustment_count + 1)
             one_index = np.where(array == 1)[0][0]
             return one_index
-
+        if len(gt_adjustment) == 0:
+            return [0.0] * self.adjustment_count
         print('gt adjustment:', gt_adjustment)
         print('predicted adjustment:', predicted_adjustment)
         one_hot_encoded_adjustment = np.apply_along_axis(self.convert_array_to_one_hot_encoded, axis=1, arr=predicted_adjustment)
