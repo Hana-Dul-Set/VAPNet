@@ -1,7 +1,6 @@
-import random
 import math
+
 import numpy as np
-from PIL import Image
 
 def perturbate(input, operator):
     cx, cy, w, h = input

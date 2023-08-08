@@ -1,7 +1,9 @@
-from PIL import Image, ImageDraw
-import random, math
+import math
+import random
 
-from image_utils.image_preprocess import get_rotated_image
+from PIL import Image, ImageDraw
+
+from .image_preprocess import get_rotated_image
 
 def change_proportion_to_zero(image, bounding_box):
 
@@ -55,13 +57,13 @@ def zoom_out_borders(image):
 def rotation_borders(image):
     theta = random.uniform(-math.pi / 4, math.pi / 4)
     bounding_box = [0, 0, image.size[0], image.size[1]]
-    rotated_image = get_rotated_image(image, bounding_box, allow_zero_pixel=True, option='augmentation', radian=theta)
+    rotated_image = get_rotated_image(image, bounding_box, allow_zero_pixel=True, option='augmentation', input_radian=theta)
 
-    initial_image = get_rotated_image(rotated_image, [0, 0, rotated_image.size[0], rotated_image.size[1]], allow_zero_pixel=True, option='augmentation', radian=-theta)
+    initial_image = get_rotated_image(rotated_image, [0, 0, rotated_image.size[0], rotated_image.size[1]], allow_zero_pixel=True, option='augmentation', input_radian=-theta)
     return initial_image
 
 if __name__ == '__main__':
-    image_path = '../sample.jpg'
+    image_path = '../../data/sample.jpg'
     image = Image.open(image_path)
     image.show()
 
@@ -75,3 +77,4 @@ if __name__ == '__main__':
 
     augmented_image = rotation_borders(image)
     augmented_image.show()
+    image.show()

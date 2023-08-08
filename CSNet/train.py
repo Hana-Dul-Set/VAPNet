@@ -1,17 +1,16 @@
-from torch.utils.data import DataLoader
-import torch.optim as optim
-import torch
-import numpy as np
 import os
-import time
+
+import torch
+import torch.optim as optim
+from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 import wandb
 
 from config import Config
 from csnet import CSNet
 from dataset import SCDataset, BCDataset, UNDataset
-from image_utils.augmentation import *
 from image_utils.image_preprocess import get_cropping_image, get_zooming_image, get_shifted_image, get_rotated_image
+from image_utils.augmentation import *
 from test import test_while_training
 
 def not_convert_to_tesnor(batch):
@@ -36,7 +35,7 @@ def build_dataloader(cfg):
                               shuffle=True,
                               collate_fn=not_convert_to_tesnor,
                               num_workers=cfg.num_workers)
-    # return sc_loader
+    # return data loader
     return sc_loader, bc_loader, un_loader
 
 class Trainer(object):
@@ -47,55 +46,29 @@ class Trainer(object):
         self.image_dir = self.cfg.image_dir
 
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+
+        self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(cfg)
 
         self.sc_batch_size = self.cfg.scored_crops_batch_size
         self.bc_batch_size = self.cfg.best_crop_K
         self.un_batch_size = self.cfg.unlabeled_P
         
-        self.train_iter = 0
-        '''
-        diff > 0.3:
-            margin_loss * 1
-        else:
-            margin_loss * 1/diff * (1/0.3)
-        '''
         self.loss_fn = torch.nn.MarginRankingLoss(margin=self.cfg.pairwise_margin, reduction='mean')
-        """
-        def marginloss(pos, neg, target):
-            margin_loss = torch.max(torch.zeros(pos.shape[0], 1).to(self.device), 0.3 + torch.sub(neg, pos)).to(self.device)
-            diff = torch.abs(torch.sub(neg, pos)).to(self.device)
-            alpha = torch.where(diff > torch.tensor([0.3 for i in range(pos.shape[0])]).to(self.device), 1, torch.div(torch.ones(pos.shape[0],1).to(self.device), diff) * (1/0.3)).to(self.device)
-            loss = margin_loss * alpha
-            loss = torch.mean(loss).to(self.device)
-            return loss
-        self.loss_fn = marginloss
-        """
-        
         self.optimizer = optim.Adam(params=model.parameters(),
                                     lr=self.cfg.learning_rate,
                                     weight_decay=self.cfg.weight_decay)
-        
-        """
-        self.optimizer = optim.SGD(params=model.parameters(),
-                                   lr=self.cfg.learning_rate,
-                                   momentum=0.99,
-                                   weight_decay=self.cfg.weight_decay)
-        """
+
         self.epoch = 0
         self.max_epoch = self.cfg.max_epoch
         
-        # self.sc_loader = build_dataloader(cfg)
-        self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(cfg)
-
-        self.total_loss_sum = 0
+        self.train_iter = 0
+        self.sc_iter = 0
+        self.bc_iter = 0
+        self.un_iter = 0
         self.sc_loss_sum = 0
         self.bc_loss_sum = 0
         self.un_loss_sum = 0
-        self.train_iter_count = 0
-        self.sc_iter_count = 0
-        self.bc_iter_count = 0
-        self.un_iter_count = 0
 
         self.transformer = transforms.Compose([
             transforms.Resize(self.cfg.image_size),
@@ -105,22 +78,23 @@ class Trainer(object):
 
 
     def training(self):
-        # self.model.train()
-        # self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(self.cfg)
         print('\n======train start======\n')
-        bc_iter = iter(self.bc_loader)
-        un_iter = iter(self.un_loader)
+        bc_iterator = iter(self.bc_loader)
+        un_iterator = iter(self.un_loader)
         for index, data in enumerate(self.sc_loader):
             self.model.train().to(self.device)
+
             sc_data_list = data
+            
             try:
-                bc_data_list = next(bc_iter)
+                bc_data_list = next(bc_iterator)
             except:
-                bc_iter = iter(self.bc_loader)
+                bc_iterator = iter(self.bc_loader)
+            
             try:
-                un_data_list = next(un_iter)
+                un_data_list = next(un_iterator)
             except:
-                un_iter = iter(self.un_loader)
+                un_iterator = iter(self.un_loader)
             
             sc_pos_images, sc_neg_images = self.make_pairs_scored_crops(sc_data_list[0])
             
@@ -128,7 +102,6 @@ class Trainer(object):
                 sc_loss = None
             else:
                 sc_loss = self.calculate_pairwise_ranking_loss(sc_pos_images, sc_neg_images)
-            
             
             bc_pos_images, bc_neg_images = self.make_pairs_perturbating(bc_data_list, labeled=True)
             if len(bc_pos_images) == 0:
@@ -142,56 +115,43 @@ class Trainer(object):
             total_loss = 0
             if sc_loss != None:
                 total_loss += sc_loss
-                self.sc_iter_count += 1
+                self.sc_iter += 1
             if bc_loss != None:
                 total_loss += bc_loss
-                self.bc_iter_count += 1
+                self.bc_iter += 1
             
             total_loss += un_loss
-            self.un_iter_count += 1
+            self.un_iter += 1
 
             loss_log = f'L_SC: {sc_loss.item() if sc_loss != None else 0.0:.5f}, L_BC: {bc_loss.item() if bc_loss != None else 0.0:.5f}, L_UN: {un_loss.item():.5f}'
+            print(loss_log)
             
-            # self.total_loss_sum += total_loss.item() 
             self.sc_loss_sum += sc_loss.item() if sc_loss != None else 0
-            # print(sc_loss.item() if sc_loss != None else -1)
-            
             self.bc_loss_sum += bc_loss.item() if bc_loss != None else 0
             self.un_loss_sum += un_loss.item()
-            
-            self.train_iter += 1
-            print(loss_log)
             
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()
 
+            self.train_iter += 1
+
             if self.train_iter % 20 == 0:
-                ave_sc_loss = self.sc_loss_sum / self.sc_iter_count
-                ave_bc_loss = self.bc_loss_sum / self.bc_iter_count
-                ave_un_loss = self.un_loss_sum / self.un_iter_count
+                ave_sc_loss = self.sc_loss_sum / self.sc_iter
+                ave_bc_loss = self.bc_loss_sum / self.bc_iter
+                ave_un_loss = self.un_loss_sum / self.un_iter
                 wandb.log({"sc_loss": ave_sc_loss, "bc_loss": ave_bc_loss, "un_loss": ave_un_loss})
                 self.sc_loss_sum = 0
                 self.bc_loss_sum = 0
                 self.un_loss_sum = 0
-                self.sc_iter_count = 0
-                self.bc_iter_count = 0
-                self.un_iter_count = 0
+                self.sc_iter = 0
+                self.bc_iter = 0
+                self.un_iter = 0
             if self.train_iter % 5000 == 0:
                 checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
                 torch.save(self.model.state_dict(), checkpoint_path)
                 print('Checkpoint Saved...\n')
                 test_while_training()
-            """
-            del sc_loss
-            del bc_loss
-            del un_loss
-            del total_loss
-            sc_loss = None
-            bc_loss = None
-            un_loss = None
-            total_loss = None
-            """
 
         print('\n======train end======\n')
 
@@ -212,33 +172,14 @@ class Trainer(object):
         pos_tensor = self.convert_image_list_to_tensor(pos_images)
         neg_tensor = self.convert_image_list_to_tensor(neg_images)
         
-        tensor_concat = torch.cat((pos_tensor, neg_tensor), dim=0)
-        tensor_concat = tensor_concat.to(self.device)
+        tensor_concat = torch.cat((pos_tensor, neg_tensor), dim=0).to(self.device)
+            
+        score_concat = self.model(tensor_concat)
+        pos_score, neg_score = torch.split(score_concat, [score_concat.shape[0] // 2, score_concat.shape[0] // 2])
         
+        target = torch.ones((pos_score.shape[0], 1)).to(self.device)
+        loss = self.loss_fn(pos_score, neg_score, target=target)
 
-        """
-        pos_tensor = self.model(pos_tensor.to(self.device))
-        neg_tensor = self.model(neg_tensor.to(self.device))
-        """
-        """
-        def round4(x):
-            return int(x[0] * 1000)/1000
-        if self.train_iter == 0:
-            print(list(map(round4, pos_tensor[:5].tolist())))
-            print(list(map(round4, neg_tensor[:5].tolist())))
-            input()
-        """
-        
-        tensor_concat = self.model(tensor_concat)
-        pos_tensor, neg_tensor = torch.split(tensor_concat, [tensor_concat.shape[0] // 2, tensor_concat.shape[0] // 2])
-        
-        target = torch.ones((pos_tensor.shape[0], 1)).to(self.device)
-        loss = self.loss_fn(pos_tensor, neg_tensor, target=target)
-        """
-        del pos_tensor
-        del neg_tensor
-        del target
-        """
         return loss
 
     def run(self):
@@ -250,23 +191,18 @@ class Trainer(object):
             checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
             torch.save(self.model.state_dict(), checkpoint_path)
             print('Checkpoint Saved...\n')
+            test_while_training()
 
             epoch_log = 'epoch: %d / %d, lr: %8f' % (self.epoch, self.max_epoch, self.optimizer.param_groups[0]['lr'])
             print(epoch_log)
-            
-            # accuracy_log = f'{self.sc_loss_sum / self.sc_iter:.5f}/{self.bc_loss_sum / self.bc_iter:.5f}/{self.un_loss_sum / self.train_iter:.5f}/{self.total_loss_sum / self.train_iter:.5f}'
-            # accuracy_log = f'{self.sc_loss_sum / self.sc_iter:.5f}'
-            # print(accuracy_log)
-            # with open('epoch_log.txt', 'a') as f:
-                # f.write(accuracy_log + f"/{self.optimizer.param_groups[0]['lr']}\n")
-            test_while_training()
+
             self.train_iter = 0
-            self.total_loss_sum = 0
             self.sc_loss_sum = 0
             self.bc_loss_sum = 0
             self.un_loss_sum = 0
             self.sc_iter = 0
             self.bc_iter = 0
+            self.un_iter = 0
 
     def shuffle_two_lists_in_same_order(self, list1, list2):
         combined_lists = list(zip(list1, list2))
@@ -293,11 +229,11 @@ class Trainer(object):
         for pos_box, neg_box in boudning_box_pairs:
             pos_image = image.crop(pos_box)
             neg_image = image.crop(neg_box)
-            augmented_pos_image, augmented_neg_image = self.augment_pair((pos_image, neg_image), labeled=True)
-
             pos_images.append(pos_image)
             neg_images.append(neg_image)
 
+            # augmentation by filling zero pixels
+            augmented_pos_image, augmented_neg_image = self.augment_pair((pos_image, neg_image), labeled=True)
             pos_images.append(augmented_pos_image)
             neg_images.append(augmented_neg_image)
 
@@ -340,11 +276,11 @@ class Trainer(object):
 
             pos_image = image_pair[0]
             neg_image = image_pair[1]
-            augmented_pos_image, augmented_neg_image = self.augment_pair((pos_image, neg_image), labeled)
-
             pos_images.append(pos_image)
             neg_images.append(neg_image)
 
+            # augmentation by filling zero pixels
+            augmented_pos_image, augmented_neg_image = self.augment_pair((pos_image, neg_image), labeled)
             pos_images.append(augmented_pos_image)
             neg_images.append(augmented_neg_image)
 
@@ -370,7 +306,7 @@ class Trainer(object):
 
 if __name__ == '__main__':
     cfg = Config()
-
+    """
     wandb.init(
         # set the wandb project where this run will be logged
         project="three_data_loader",
@@ -384,10 +320,10 @@ if __name__ == '__main__':
         "memo": "None"
         }
     )
-
+    """
     model = CSNet(cfg)
-    weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
-    model.load_state_dict(torch.load(weight_file))
+    # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
+    # model.load_state_dict(torch.load(weight_file))
 
     trainer = Trainer(model, cfg)
     trainer.run()

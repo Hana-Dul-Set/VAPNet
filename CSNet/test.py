@@ -1,12 +1,9 @@
-from torch.utils.data import DataLoader
-import torch.optim as optim
-import torch
-import numpy as np
 import os
-from tqdm import tqdm
-import time
-from PIL import Image
+
+import torch
+from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
+from tqdm import tqdm
 import wandb
 
 from config import Config
@@ -34,7 +31,7 @@ class Tester(object):
 
         self.sc_loader = build_dataloader(self.cfg)
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_batch_size = self.cfg.scored_crops_batch_size
 
@@ -54,9 +51,8 @@ class Tester(object):
 
 
     def run(self):
-        self.model.eval().to(self.device)
-        # self.model.eval()
         print('\n======test start======\n')
+        self.model.eval().to(self.device)
         with torch.no_grad():
             for index, data in tqdm(enumerate(self.sc_loader), total=self.data_length):
                 sc_data_list = data
@@ -94,10 +90,6 @@ class Tester(object):
         pos_tensor = pos_tensor.to(self.device)
         neg_tensor = neg_tensor.to(self.device)
 
-        """
-        pos_scores = self.model(pos_tensor)
-        neg_scores = self.model(neg_tensor)
-        """
         pos_scores = [self.model(x.unsqueeze(0)) for x in pos_tensor]
         neg_scores = [self.model(x.unsqueeze(0)) for x in neg_tensor]
         pos_scores = torch.cat(pos_scores, dim=0)

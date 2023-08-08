@@ -1,11 +1,12 @@
-from torch.utils.data import Dataset
-from PIL import Image
-import PIL
-from torchvision.transforms import transforms
 import os
-import json
-from config import Config
 import random
+
+import json
+import PIL
+from PIL import Image
+from torch.utils.data import Dataset
+
+from config import Config
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -48,13 +49,14 @@ class SCDataset(Dataset):
         data_list = []
         with open(self.annotation_path, 'r') as f:
             data_list = json.load(f)
+        data_list = data_list[:100]
         image_list = []
         crops_list = []
         for data in data_list:
             image_src = Image.open(os.path.join(self.image_dir, data['name']))
-            image_filped = image_src.transpose(PIL.Image.FLIP_LEFT_RIGHT)
+            image_fliped = image_src.transpose(PIL.Image.FLIP_LEFT_RIGHT)
             image_list.append(image_src)
-            image_list.append(image_filped)
+            image_list.append(image_fliped)
             crops_list.append(data['crops'])
             crops_list.append([horizontal_flip_bounding_box(image_src.size, x.copy()) for x in data['crops']])
         return image_list, crops_list
@@ -125,7 +127,9 @@ class UNDataset(Dataset):
 
 if __name__ == '__main__':
     cfg = Config()
-
-    idx = 0
-    dataset = SCDataset('train', cfg)
-    print(dataset.__getitem__(0), dataset.__getitem__(1))
+    sc_dataset = SCDataset('train', cfg)
+    bc_dataset = BCDataset('train', cfg)
+    un_dataset = UNDataset('train', cfg)
+    print(sc_dataset.__getitem__(0))
+    print(bc_dataset.__getitem__(0))
+    print(un_dataset.__getitem__(0))
