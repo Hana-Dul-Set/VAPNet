@@ -1,16 +1,16 @@
-from torch.utils.data import DataLoader
-import torch.optim as optim
-import torch
-import numpy as np
 import os
-import time
+import random
+
+from PIL import Image
+import torch
+import torch.optim as optim
+from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
 from config import Config
-from vapnet import VAPNet
+from CSNet.image_utils.image_preprocess import get_cropping_image, get_zooming_image, get_shifted_image, get_rotated_image
 from dataset import BCDataset, UnlabledDataset
-from image_utils.augmentation import *
-from image_utils.image_preprocess import get_cropping_image, get_zooming_image, get_shifted_image, get_rotated_image
+from vapnet import VAPNet
 
 def not_convert_to_tesnor(batch):
         return batch
@@ -42,8 +42,8 @@ class Trainer(object):
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
         self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
         self.batch_size = self.cfg.batch_size
-        
-        self.train_iter = 0
+
+        self.bc_loader, self.unlabeled_loader = build_dataloader(self.cfg)
 
         self.suggestion_loss_fn = torch.nn.BCELoss(reduction='mean')
         self.adjustment_loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
@@ -61,16 +61,15 @@ class Trainer(object):
             transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
         ])
 
+        self.train_iter = 0
+        self.suggested_case_iter = 0
         self.suggestion_loss_sum = 0
         self.adjustment_loss_sum = 0
         self.magnitude_loss_sum = 0
-        self.suggested_case_iter = 0
 
     def training(self):
-        self.model.train().to(self.device)
-        # self.model.train()
-        self.bc_loader, self.unlabeled_loader = build_dataloader(self.cfg)
         print('\n======train start======\n')
+        self.model.train().to(self.device)
         bc_iter = iter(self.bc_loader)
         for index, data in enumerate(self.unlabeled_loader):
             self.train_iter += 1
@@ -85,7 +84,7 @@ class Trainer(object):
             # get best crop image and label for no-suggestion case
             b_image_list, b_suggestion_label_list, b_adjustment_label_list, b_magnitude_label_list = self.get_best_crop_labeled_data_list(bc_data_list)
 
-            # combine 
+            # combine
             l_image_list += b_image_list
             l_suggestion_label_list += b_suggestion_label_list
             l_adjustment_label_list += b_adjustment_label_list
@@ -99,27 +98,25 @@ class Trainer(object):
 
             # combine
             image_list = l_image_list + ul_image_list
-            suggestion_list = l_suggestion_label_list + ul_suggestion_label_list
-            adjustment_list = l_adjustment_label_list + ul_adjustment_label_list
-            magnitude_list = l_magnitude_label_list + ul_magnitude_label_list
-            print(suggestion_list)     
-
-
+            gt_suggestion_list = l_suggestion_label_list + ul_suggestion_label_list
+            gt_adjustment_list = l_adjustment_label_list + ul_adjustment_label_list
+            gt_magnitude_list = l_magnitude_label_list + ul_magnitude_label_list
+            
             # shuffle
-            combined_list = list(zip(image_list, suggestion_list, adjustment_list, magnitude_list))
+            combined_list = list(zip(image_list, gt_suggestion_list, gt_adjustment_list, gt_magnitude_list))
             random.shuffle(combined_list)
-            image_list, suggestion_list, adjustment_list, magnitude_list = [list(x) for x in zip(*combined_list)]
+            image_list, gt_suggestion_list, gt_adjustment_list, gt_magnitude_list = [list(x) for x in zip(*combined_list)]
             
             # model inference
             predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(self.convert_image_list_to_tensor(image_list))
 
             # calculate suggestion loss using BCELoss
-            suggestion_list = torch.tensor(suggestion_list).to(self.device)       
-            suggestion_loss = self.suggestion_loss_fn(suggestion_list, predicted_suggestion)
+            gt_suggestion_list = torch.tensor(gt_suggestion_list).to(self.device)       
+            suggestion_loss = self.suggestion_loss_fn(gt_suggestion_list, predicted_suggestion)
             self.suggestion_loss_sum += suggestion_loss.item()
 
             # filter no suggestion cases
-            suggested_index = [i for i in range(len(suggestion_list)) if suggestion_list[i] == 1]
+            suggested_index = [i for i in range(len(gt_suggestion_list)) if gt_suggestion_list[i] == 1]
             
             # there are only no suggestion cases
             if len(suggested_index) == 0:
@@ -133,20 +130,20 @@ class Trainer(object):
             self.suggested_case_iter += 1
 
             suggested_index = torch.tensor(suggested_index).to(self.device)
-            adjustment_list = torch.tensor(adjustment_list).to(self.device)
-            magnitude_list = torch.tensor(magnitude_list).to(self.device)
+            gt_adjustment_list = torch.tensor(gt_adjustment_list).to(self.device)
+            gt_magnitude_list = torch.tensor(gt_magnitude_list).to(self.device)
 
             # remove no-suggestion cases
             predicted_adjustment = torch.index_select(predicted_adjustment, dim=0, index=suggested_index)
             predicted_magnitude = torch.index_select(predicted_magnitude, dim=0, index=suggested_index)
-            adjustment_list = torch.index_select(adjustment_list, dim=0, index=suggested_index)
-            magnitude_list = torch.index_select(magnitude_list, dim=0, index=suggested_index)
+            gt_adjustment_list = torch.index_select(gt_adjustment_list, dim=0, index=suggested_index)
+            gt_magnitude_list = torch.index_select(gt_magnitude_list, dim=0, index=suggested_index)
 
             # calculate adjust loss using CrossEntropyLoss
-            adjustment_loss = self.adjustment_loss_fn(adjustment_list, predicted_adjustment)
+            adjustment_loss = self.adjustment_loss_fn(gt_adjustment_list, predicted_adjustment)
 
             # calculate magnitude loss using L1Loss
-            magnitude_loss = self.magnitude_loss_fn(magnitude_list, predicted_magnitude)
+            magnitude_loss = self.magnitude_loss_fn(gt_magnitude_list, predicted_magnitude)
 
             total_loss = suggestion_loss + adjustment_loss + magnitude_loss
             train_log = f'suggestion loss:{suggestion_loss.item():.5f}/adjustment loss:{adjustment_loss.item():.5f}/magnitude loss:{magnitude_loss.item():.5f}/total loss:{total_loss:.5f}'

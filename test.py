@@ -1,20 +1,18 @@
-from torch.utils.data import DataLoader
-import torch.optim as optim
-import torch
-import numpy as np
 import os
-from tqdm import tqdm
-import time
-from PIL import Image
-from torchvision.transforms import transforms
+
+from shapely.geometry import Polygon
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import f1_score as f1
-from shapely.geometry import Polygon
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+from torchvision.transforms import transforms
+from tqdm import tqdm
 
 from config import Config
-from vapnet import VAPNet
 from dataset import LabledDataset
-from image_utils.image_preprocess import get_shifted_box, get_rotated_box
+from CSNet.image_utils.image_preprocess import get_shifted_box, get_rotated_box
+from vapnet import VAPNet
 
 def build_dataloader(cfg):
     labeled_dataset = LabledDataset('test', cfg)
@@ -60,19 +58,19 @@ class Tester(object):
         self.iou_score_sum = 0
 
     def run(self):
-        self.model.eval().to(self.device)
-        # self.model.eval()
         print('\n======test start======\n')
+        self.model.eval().to(self.device)
         with torch.no_grad():
             for index, data in tqdm(enumerate(self.data_loader), total=self.data_length):
                 # data split
                 image = data[0].to(self.device)
-                gt_bounding_box = data[1].tolist()
-                gt_perturbated_bounding_box = data[2].tolist()
-                gt_suggesiton_label = data[3].numpy()
-                gt_adjustment_label = data[4].numpy()
-                gt_magnitude_label = data[5].numpy()
-
+                image_size = data[1].tolist()
+                gt_bounding_box = data[2].tolist()
+                gt_perturbated_bounding_box = data[3].tolist()
+                gt_suggesiton_label = data[4].numpy()
+                gt_adjustment_label = data[5].numpy()
+                gt_magnitude_label = data[6].numpy()
+                print(image_size)
                 # model inference
                 predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(image)
 
@@ -95,39 +93,45 @@ class Tester(object):
                 # get one-hot encoded predicted adjustment
                 one_hot_predicted_adjustment = np.apply_along_axis(self.convert_array_to_one_hot_encoded, axis=1, arr=predicted_adjustment)
 
-                # remove no-suggestd elements
+                # conver index nparray of no-suggestd elements to python list
                 suggested_index = list(suggested_index)
                 
                 # get predicted bounding box
                 predicted_bounding_box = []
-
+                
                 for index, gt_perturbated_box in enumerate(gt_perturbated_bounding_box):
+                    # no-suggestion case
                     if index not in suggested_index:
+                        print("no-suggestion", gt_bounding_box[index], gt_perturbated_box)
                         predicted_bounding_box.append(gt_perturbated_box)
                         continue
                 
                     adjustment = np.where(one_hot_predicted_adjustment[index] == 1.0)[0][0]
                     magnitude = predicted_magnitude[index][adjustment]
+                    print(adjustment, magnitude, gt_perturbated_box)
                     #  horizontal shift
                     if adjustment == 0 or adjustment == 1:
-                        predicted_box = get_shifted_box(image=image[index], \
+                        predicted_box = get_shifted_box(image_size=image_size[index], \
                                                         bounding_box_corners=gt_perturbated_box, \
-                                                        mag=magnitude,\
+                                                        mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
                                                         direction=0)
                     # vertical shift
                     elif adjustment == 2 or adjustment == 3:
-                        predicted_box = get_shifted_box(image=image[index], \
+                        predicted_box = get_shifted_box(image_size=image_size[index], \
                                                         bounding_box_corners=gt_perturbated_box, \
-                                                        mag=magnitude,\
+                                                        mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
                                                         direction=1)
                     # rotation
                     elif adjustment == 4 or adjustment == 5:
-                        if gt_adjustment_label[index][4] == 1 or gt_adjustment_label[index][5] == 1:
+                        if gt_adjustment_label[index][4] == 1:
                             predicted_box = get_rotated_box(bounding_box=gt_bounding_box[index], \
-                                                            input_radian=magnitude - gt_magnitude_label[index][adjustment])
+                                                            input_radian=(1 if adjustment % 2 == 1 else -1) * (magnitude - gt_magnitude_label[index][4]))
+                        elif gt_adjustment_label[index][5] == 1:
+                            predicted_box = get_rotated_box(bounding_box=gt_bounding_box[index], \
+                                                            input_radian=(1 if adjustment % 2 == 1 else -1) * (magnitude - gt_magnitude_label[index][5]))
                         else:
                             predicted_box = get_rotated_box(bounding_box=gt_perturbated_box, \
-                                                            input_radian=magnitude)
+                                                            input_radian=(1 if adjustment % 2 == 1 else -1) * magnitude)
                     predicted_bounding_box.append(predicted_box)
 
                 # calculate average iou score for each bounding box pairs
@@ -142,8 +146,6 @@ class Tester(object):
         print('\n======test end======\n')
 
         # calculate ave score
-        print("auc_sum:", self.auc_score_sum)
-        print("tpr_sum:", self.tpr_score_sum)
         ave_auc_score = self.auc_score_sum / self.data_length
         ave_tpr_score = self.tpr_score_sum / self.data_length
         ave_f1_score = [x / self.data_length for x in self.f1_score_sum]
@@ -156,7 +158,7 @@ class Tester(object):
         def find_idx_for_fpr(fpr):
             idices = np.where(np.abs(fpr - self.fpr_limit) == np.min(np.abs(fpr - self.fpr_limit)))
             return np.max(idices)
-        gt_suggestion = gt_suggestion
+
         predicted_suggestion = predicted_suggestion.to('cpu')
         fpr, tpr, cut = roc_curve(gt_suggestion, predicted_suggestion)
         auc_score = auc(fpr, tpr)
@@ -170,6 +172,7 @@ class Tester(object):
         print('TPR:', tpr)
         print('CUT:', cut)
         print(f'idx: {idx}/threshold: {threshold}')
+
         return auc_score, tpr_score, threshold
     
     def convert_array_to_one_hot_encoded(self, array):
@@ -184,18 +187,22 @@ class Tester(object):
                 return np.array(self.adjustment_count + 1)
             one_index = np.where(array == 1)[0][0]
             return one_index
+        
         if len(gt_adjustment) == 0:
             return [0.0] * self.adjustment_count
+        
         print('gt adjustment:', gt_adjustment)
         print('predicted adjustment:', predicted_adjustment)
         one_hot_encoded_adjustment = np.apply_along_axis(self.convert_array_to_one_hot_encoded, axis=1, arr=predicted_adjustment)
-        print('predicted adjustment:', one_hot_encoded_adjustment)
-        gt_label = np.apply_along_axis(convert_one_hot_encoded_to_index, axis=1, arr=gt_adjustment)
-        predicted_label = np.apply_along_axis(convert_one_hot_encoded_to_index, axis=1, arr=one_hot_encoded_adjustment)
-        print('gt label:', gt_label)
-        print('predicted label:', predicted_label)
+        print('one_hot_predicted adjustment:', one_hot_encoded_adjustment)
+        gt_label_list = np.apply_along_axis(convert_one_hot_encoded_to_index, axis=1, arr=gt_adjustment)
+        predicted_label_list = np.apply_along_axis(convert_one_hot_encoded_to_index, axis=1, arr=one_hot_encoded_adjustment)
+        print('gt label:', gt_label_list)
+        print('predicted label:', predicted_label_list)
         labels = [i for i in range(0, self.adjustment_count + 1)]
-        f1_score = f1(gt_label, predicted_label, labels=labels, average=None, zero_division=0.0)
+        f1_score = f1(gt_label_list, predicted_label_list, labels=labels, average=None, zero_division=0.0)
+
+        # remove no-suggestion case
         f1_score = f1_score[:-1]
         print('f1 score:', f1_score)
         return f1_score
@@ -203,7 +210,7 @@ class Tester(object):
     def calculate_ave_iou_score(self, boudning_box_list, perturbated_box_list):
         # box format: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] (counter-clockwise order)
         def calculate_iou_score(box1, box2):
-            print("gt_box:", box1, "/predcited_box:", box2)
+            print("gt_box:", box1, "/predicted_box:", box2)
             poly1 = Polygon(box1)
             poly2 = Polygon(box2)
             

@@ -175,7 +175,7 @@ def get_rotated_image(image, bounding_box, allow_zero_pixel=False, option='csnet
     else:
         return rotated_image, operator
     
-def get_shifted_box(image, bounding_box_corners, mag=None, direction=None):
+def get_shifted_box(image_size, bounding_box_corners, mag=None, direction=None):
 
     operator = [0.0, 0.0, 0.0, 0.0]
     operator[direction] = mag
@@ -183,14 +183,20 @@ def get_shifted_box(image, bounding_box_corners, mag=None, direction=None):
     max_x = max([x[0] for x in bounding_box_corners])
     min_y = min([x[1] for x in bounding_box_corners])
     max_y = max([x[1] for x in bounding_box_corners])
-    bounding_box = [(min_x + max_x) // 2, (min_y + max_y) // 2, (max_x - min_x), (max_y - min_y)]
-    new_box = shifting(bounding_box, operator)
-
+    if direction == 0:
+        diff = image_size[0] * mag
+        min_x += diff
+        max_x += diff
+    elif direction == 1:
+        diff = image_size[1] * mag
+        min_y += diff
+        max_y += diff
+    new_box = [min_x, min_y, max_x, max_y]
     new_box = [
-        (new_box[0] - new_box[2], new_box[1] - new_box[3]),
-        (new_box[0] - new_box[2], new_box[1] + new_box[3]),
-        (new_box[0] + new_box[2], new_box[1] + new_box[3]),
-        (new_box[0] + new_box[2], new_box[1] - new_box[3]),
+        (new_box[0], new_box[1]),
+        (new_box[0], new_box[3]),
+        (new_box[2], new_box[3]),
+        (new_box[2], new_box[1]),
     ]
 
     return new_box
@@ -201,7 +207,7 @@ def get_rotated_box(bounding_box, input_radian=None):
     max_x = max(x[0] for x in bounding_box)
     min_y = min(x[1] for x in bounding_box)
     max_y = max(x[1] for x in bounding_box)
-    bounding_box = [(min_x + max_x) // 2, (min_y + max_y) // 2, (max_x - min_x), (max_y - min_y)]
+    bounding_box = [min_x, min_y, max_x, max_y]
     operator = [0.0, 0.0, 0.0, 0.0]
     operator[3] = input_radian
 

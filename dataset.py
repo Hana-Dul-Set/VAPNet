@@ -1,19 +1,18 @@
-from torch.utils.data import Dataset
-from PIL import Image
-from torchvision.transforms import transforms
 import os
-import json
-from config import Config
-import random
 import math
-from torchvision.transforms import transforms
+
+import json
+from PIL import Image
 import torch
+from torch.utils.data import Dataset
+from torchvision.transforms import transforms
 import tqdm
 
-from image_utils.image_preprocess import get_shifted_image, get_zooming_image, get_rotated_image
+from CSNet.image_utils.image_preprocess import get_shifted_image, get_zooming_image, get_rotated_image
 from CSNet.csnet import get_pretrained_CSNet
+from config import Config
 
-# best crop dataset
+# best crop dataset for training(FCDB, GAICD)
 class BCDataset(Dataset):
     def __init__(self, mode, cfg) :
         self.cfg = cfg
@@ -45,7 +44,7 @@ class BCDataset(Dataset):
             best_crop_list.append(data['crop'])
         return image_list, best_crop_list
     
-# unlabeled dataset(Open Images)
+# unlabeled dataset for training(Open Images)
 class UnlabledDataset(Dataset):
     def __init__(self, mode, cfg) :
         self.cfg = cfg
@@ -102,6 +101,7 @@ class LabledDataset(Dataset):
         data = self.data_list[index]
         image_name = data['name']
         image = Image.open(os.path.join(self.image_dir, image_name))
+        image_size = torch.tensor(image.size)
         if len(image.getbands()) == 1:
             rgb_image = Image.new("RGB", image.size)
             rgb_image.paste(image, (0, 0, image.width, image.height))
@@ -112,7 +112,7 @@ class LabledDataset(Dataset):
         suggestion_label = torch.tensor(data['suggestion'])
         adjustment_label = torch.tensor(data['adjustment'])
         magnitude_label = torch.tensor(data['magnitude'])
-        return transformed_image, bounding_box, perturbated_bounding_box, suggestion_label, adjustment_label, magnitude_label
+        return transformed_image, image_size, bounding_box, perturbated_bounding_box, suggestion_label, adjustment_label, magnitude_label
 
     def build_data_list(self):
         data_list = []
@@ -149,10 +149,8 @@ def make_pseudo_label(image_path):
     up_shift_magnitude = [-x * 0.05 for x in range(1, 10, 1)]
     down_shift_magnitude = [x * 0.05 for x in range(1, 10, 1)]
 
-    """
-    zoom_in_magnitude = [-x * 0.05 for x in range(1, 10, 1)]
-    zoom_out_magnitude = [x * 0.05 for x in range(1, 10, 1)]
-    """
+    # zoom_in_magnitude = [-x * 0.05 for x in range(1, 10, 1)]
+    # zoom_out_magnitude = [x * 0.05 for x in range(1, 10, 1)]
 
     clockwise_magnitude = [-x * math.pi / 36 for x in range(1, 10, 1)]
     counter_clokwise_magnitude = [x * math.pi / 36 for x in range(1, 10, 1)]
@@ -167,8 +165,6 @@ def make_pseudo_label(image_path):
                                  counter_clokwise_magnitude]
     
     csnet = get_pretrained_CSNet()
-    original_image_score = get_csnet_score([image], csnet).item()
-
     pseudo_data_list = []
     
     for index, magnitude_list in enumerate(adjustment_magnitude_list):
@@ -179,7 +175,7 @@ def make_pseudo_label(image_path):
             magnitude_label = [0.0] * len(adjustment_magnitude_list)
             pseudo_image = None
 
-            # Get vertical shifted images
+            # get vertical shifted images
             if 0 <= index < 2:
                 pseudo_image = get_shifted_image(image,
                                                  [0, 0, image.size[0], image.size[1]],
@@ -188,7 +184,7 @@ def make_pseudo_label(image_path):
                                                  mag=mag,
                                                  direction=0)
                 magnitude_label[index] = mag
-            # Get horiziontal shifted images
+            # get horiziontal shifted images
             elif 2 <= index < 4:
                 pseudo_image = get_shifted_image(image,
                                                  [0, 0, image.size[0], image.size[1]],
@@ -197,7 +193,7 @@ def make_pseudo_label(image_path):
                                                  mag=mag,
                                                  direction=1)
                 magnitude_label[index] = mag
-            # Get clockwise and counter clockwise rotated images
+            # get clockwise and counter clockwise rotated images
             elif 4 <= index < 6:
                 pseudo_image = get_rotated_image(image,
                                                  [0, 0, image.size[0], image.size[1]],
@@ -206,15 +202,19 @@ def make_pseudo_label(image_path):
                                                  radian=mag)
                 magnitude_label[index] = mag
             
+            # get csnet score of each perturbated image
             score = get_csnet_score([pseudo_image], csnet)[0].item()
             pseudo_data_list.append((score, adjustment_label, magnitude_label))
 
+    # sort in desceding order by csnet score
     pseudo_data_list.sort(reverse=True)
+
+    original_image_score = get_csnet_score([image], csnet).item()
+    best_adjustment_label = pseudo_data_list[0]
+    best_adjustment_score = best_adjustment_label[0]
 
     print(len(pseudo_data_list), original_image_score)
 
-    best_adjustment_label = pseudo_data_list[0]
-    best_adjustment_score = best_adjustment_label[0]
     if original_image_score + 0.2 < best_adjustment_score:
         return {
             'name': image_name,
@@ -240,7 +240,7 @@ def make_annotations_for_unlabeled(image_list, image_dir_path):
         json.dump(annotation_list, f, indent=2)
     return
 
-def perturbating(image, bounding_box, func):
+def perturbating_for_labeled_data(image, bounding_box, func):
     output = None
     for i in range(0, 100000):
         if func == 0:
@@ -273,8 +273,10 @@ def perturbating(image, bounding_box, func):
             adjustment_index = (func - 1) * 2 + 1
         else:
             adjustment_index = func * 2 + 1
+
     adjustment[adjustment_index] = 1.0
     magnitude[adjustment_index] = -operator[func]
+
     return perturbated_image, new_box, adjustment, magnitude
 
 def make_annotation_for_labeled(image_path, bounding_box):
@@ -295,7 +297,7 @@ def make_annotation_for_labeled(image_path, bounding_box):
     i = 0
     while i < len(func_index):
         func = func_index[i]
-        output = perturbating(image, bounding_box, func)
+        output = perturbating_for_labeled_data(image, bounding_box, func)
         if output == None:
             i += 1
             continue
@@ -312,22 +314,7 @@ def make_annotation_for_labeled(image_path, bounding_box):
             'adjustment': adjustment_label,
             'magnitude': magnitude_label
         }
-        """
-        loop_cnt = 0
-        flag = False
-        for prev_annotation in annotation_list:
-            perturbated_bounding_box = prev_annotation['perturbated_bounding_box']
-            if perturbated_bounding_box == new_box:
-                flag = True
-                loop_cnt += 1
-                if loop_cnt == 10:
-                    i += 1
-                    loop_cnt = 0
-                    break
-                break
-        if flag:
-            continue
-        """
+
         perturbated_image.save(os.path.join('./data/image_labeled_vapnet', perturbated_image_name))
         annotation_list.append(annotation)
         if perturbated_image_cnt[i] < 3:
@@ -367,6 +354,7 @@ if __name__ == '__main__':
     make_annotations_for_labeled(data_list, './data/image')
     
     """
+    # count the pseuo label images by adjustment
     with open('./data/annotation/labeled_vapnet/labeled_testing_set.json', 'r') as f:
         data_list = json.load(f)
 

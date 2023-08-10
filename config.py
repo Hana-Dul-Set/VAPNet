@@ -1,5 +1,4 @@
 import os
-import math
 
 class Config:
     def __init__(self):
@@ -19,7 +18,7 @@ class Config:
         self.gpu_id = 0
         self.num_workers = 1
 
-        self.batch_size = 16
+        self.batch_size = 64
         self.learning_rate = 2e-5
         self.weight_decay = 5e-4
 
