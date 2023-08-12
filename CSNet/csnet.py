@@ -50,11 +50,12 @@ class CSNet(nn.Module):
                 spp = torch.cat((spp, x.view([num_sample, -1])), 1)
         return spp
     
-def get_pretrained_CSNet():
+def get_pretrained_CSNet(device):
     cfg = Config()
 
     model = CSNet(cfg)
     model.eval()
+    model.to(device)
     # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     # model.load_state_dict(torch.load(weight_file))
 
