@@ -79,7 +79,7 @@ class Trainer(object):
                 bc_iter = iter(self.bc_loader)
             unlabeled_data_list = data
 
-            # get randomly perturbated image and label for suggestion case
+            # get randomly perturbed image and label for suggestion case
             l_image_list, l_suggestion_label_list, l_adjustment_label_list, l_magnitude_label_list = self.get_labeled_data_list(bc_data_list)
             # get best crop image and label for no-suggestion case
             b_image_list, b_suggestion_label_list, b_adjustment_label_list, b_magnitude_label_list = self.get_best_crop_labeled_data_list(bc_data_list)
@@ -195,7 +195,7 @@ class Trainer(object):
             self.adjustment_loss_sum = 0
             self.magnitude_loss_sum = 0
 
-    def get_perturbated_image(self, data):
+    def get_perturbed_image(self, data):
         image_name = data[0]
         image = Image.open(os.path.join(self.image_dir, image_name))
         best_crop_bounding_box = data[1]
@@ -210,7 +210,7 @@ class Trainer(object):
 
         if output == None:
             return None
-        perturbated_image, operator = output
+        perturbed_image, operator = output
     
         suggestion_label = [1.0]
         adjustment_index = -1
@@ -230,7 +230,7 @@ class Trainer(object):
             adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = -operator[3]
 
-        return perturbated_image, suggestion_label, adjustment_label, magnitude_label
+        return perturbed_image, suggestion_label, adjustment_label, magnitude_label
 
     def get_labeled_data_list(self, bc_data_list):
         image_list = []
@@ -238,7 +238,7 @@ class Trainer(object):
         adjustment_label_list = []
         magnitude_label_list = []
         for data in bc_data_list:
-            labeled_data = self.get_perturbated_image(data)
+            labeled_data = self.get_perturbed_image(data)
             if labeled_data == None:
                 continue
             image_list.append(labeled_data[0])

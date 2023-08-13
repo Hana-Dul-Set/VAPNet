@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-def perturbate(input, operator):
+def perturb(input, operator):
     cx, cy, w, h = input
     ox, oy, oz, oa = operator
 
@@ -41,20 +41,20 @@ def output_to_bounding_box(output):
 
 def shifting(box, operator):
     input = bounding_box_to_input(box)
-    return perturbate(input, operator)
+    return perturb(input, operator)
 
 def zooming(box, operator):
     input = bounding_box_to_input(box)
-    return perturbate(input, operator)
+    return perturb(input, operator)
 
 def cropping(box, operator):
     input = bounding_box_to_input(box)
-    return perturbate(input, operator)
+    return perturb(input, operator)
 
 def rotation(box, oa):
     input = bounding_box_to_input(box)
     operator = [0, 0, 0, oa]
-    return perturbate(input, operator), oa
+    return perturb(input, operator), oa
 
 def rotate(input, oa):
     cx, cy, w, h = input

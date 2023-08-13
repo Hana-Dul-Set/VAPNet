@@ -103,13 +103,13 @@ class Trainer(object):
             else:
                 sc_loss = self.calculate_pairwise_ranking_loss(sc_pos_images, sc_neg_images)
             
-            bc_pos_images, bc_neg_images = self.make_pairs_perturbating(bc_data_list, labeled=True)
+            bc_pos_images, bc_neg_images = self.make_pairs_perturb(bc_data_list, labeled=True)
             if len(bc_pos_images) == 0:
                 bc_loss = None
             else:
                 bc_loss = self.calculate_pairwise_ranking_loss(bc_pos_images, bc_neg_images)
             
-            un_pos_images, un_neg_images = self.make_pairs_perturbating(un_data_list, labeled=False)
+            un_pos_images, un_neg_images = self.make_pairs_perturb(un_data_list, labeled=False)
             un_loss = self.calculate_pairwise_ranking_loss(un_pos_images, un_neg_images)
             
             total_loss = 0
@@ -242,7 +242,7 @@ class Trainer(object):
 
         return pos_images, neg_images
 
-    def make_pair_perturbating(self, data, labeled=True):
+    def make_pair_perturb(self, data, labeled=True):
         if labeled == True:
             image_name = data[0]
             image = Image.open(os.path.join(self.image_dir, image_name))
@@ -256,21 +256,21 @@ class Trainer(object):
 
         # func_list = [get_rotated_image, get_shifted_image, get_zooming_image, get_cropping_image]
         func_list = [get_shifted_image, get_zooming_image, get_cropping_image]
-        perturbate_func = random.choice(func_list)
+        perturb_func = random.choice(func_list)
 
         allow_zero_pixel = not labeled
 
-        perturbated_image = perturbate_func(image, best_crop_bounding_box, allow_zero_pixel, option='csnet')
-        if perturbated_image == None:
+        perturbed_image = perturb_func(image, best_crop_bounding_box, allow_zero_pixel, option='csnet')
+        if perturbed_image == None:
             return None
 
-        return best_crop, perturbated_image
+        return best_crop, perturbed_image
 
-    def make_pairs_perturbating(self, data_list, labeled):
+    def make_pairs_perturb(self, data_list, labeled):
         pos_images = []
         neg_images = []
         for data in data_list:
-            image_pair = self.make_pair_perturbating(data, labeled)
+            image_pair = self.make_pair_perturb(data, labeled)
             if image_pair == None:
                 continue
 

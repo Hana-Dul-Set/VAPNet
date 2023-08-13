@@ -108,11 +108,11 @@ class LabledDataset(Dataset):
             image = rgb_image
         transformed_image = self.transformer(image)
         bounding_box = torch.tensor(data['bounding_box'])
-        perturbated_bounding_box = torch.tensor(data['perturbated_bounding_box'])
+        perturbed_bounding_box = torch.tensor(data['perturbed_bounding_box'])
         suggestion_label = torch.tensor(data['suggestion'])
         adjustment_label = torch.tensor(data['adjustment'])
         magnitude_label = torch.tensor(data['magnitude'])
-        return transformed_image, image_size, bounding_box, perturbated_bounding_box, suggestion_label, adjustment_label, magnitude_label
+        return transformed_image, image_size, bounding_box, perturbed_bounding_box, suggestion_label, adjustment_label, magnitude_label
 
     def build_data_list(self):
         data_list = []

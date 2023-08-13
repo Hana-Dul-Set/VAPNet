@@ -66,7 +66,7 @@ class Tester(object):
                 image = data[0].to(self.device)
                 image_size = data[1].tolist()
                 gt_bounding_box = data[2].tolist()
-                gt_perturbated_bounding_box = data[3].tolist()
+                gt_perturbed_bounding_box = data[3].tolist()
                 gt_suggesiton_label = data[4].numpy()
                 gt_adjustment_label = data[5].numpy()
                 gt_magnitude_label = data[6].numpy()
@@ -99,26 +99,26 @@ class Tester(object):
                 # get predicted bounding box
                 predicted_bounding_box = []
                 
-                for index, gt_perturbated_box in enumerate(gt_perturbated_bounding_box):
+                for index, gt_perturbed_box in enumerate(gt_perturbed_bounding_box):
                     # no-suggestion case
                     if index not in suggested_index:
-                        print("no-suggestion", gt_bounding_box[index], gt_perturbated_box)
-                        predicted_bounding_box.append(gt_perturbated_box)
+                        print("no-suggestion", gt_bounding_box[index], gt_perturbed_box)
+                        predicted_bounding_box.append(gt_perturbed_box)
                         continue
                 
                     adjustment = np.where(one_hot_predicted_adjustment[index] == 1.0)[0][0]
                     magnitude = predicted_magnitude[index][adjustment]
-                    print(adjustment, magnitude, gt_perturbated_box)
+                    print(adjustment, magnitude, gt_perturbed_box)
                     #  horizontal shift
                     if adjustment == 0 or adjustment == 1:
                         predicted_box = get_shifted_box(image_size=image_size[index], \
-                                                        bounding_box_corners=gt_perturbated_box, \
+                                                        bounding_box_corners=gt_perturbed_box, \
                                                         mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
                                                         direction=0)
                     # vertical shift
                     elif adjustment == 2 or adjustment == 3:
                         predicted_box = get_shifted_box(image_size=image_size[index], \
-                                                        bounding_box_corners=gt_perturbated_box, \
+                                                        bounding_box_corners=gt_perturbed_box, \
                                                         mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
                                                         direction=1)
                     # rotation
@@ -130,7 +130,7 @@ class Tester(object):
                             predicted_box = get_rotated_box(bounding_box=gt_bounding_box[index], \
                                                             input_radian=(1 if adjustment % 2 == 1 else -1) * (magnitude - gt_magnitude_label[index][5]))
                         else:
-                            predicted_box = get_rotated_box(bounding_box=gt_perturbated_box, \
+                            predicted_box = get_rotated_box(bounding_box=gt_perturbed_box, \
                                                             input_radian=(1 if adjustment % 2 == 1 else -1) * magnitude)
                     predicted_bounding_box.append(predicted_box)
 
@@ -207,7 +207,7 @@ class Tester(object):
         print('f1 score:', f1_score)
         return f1_score
         
-    def calculate_ave_iou_score(self, boudning_box_list, perturbated_box_list):
+    def calculate_ave_iou_score(self, boudning_box_list, perturbed_box_list):
         # box format: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] (counter-clockwise order)
         def calculate_iou_score(box1, box2):
             print("gt_box:", box1, "/predicted_box:", box2)
@@ -222,7 +222,7 @@ class Tester(object):
         
         iou_sum = 0
         for i in range(len(boudning_box_list)):
-            iou_sum += calculate_iou_score(boudning_box_list[i], perturbated_box_list[i])
+            iou_sum += calculate_iou_score(boudning_box_list[i], perturbed_box_list[i])
         
         ave_iou = iou_sum / len(boudning_box_list)
         return ave_iou

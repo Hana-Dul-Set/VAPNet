@@ -98,7 +98,7 @@ def make_pseudo_label(image_path):
                                                  input_radian=mag)
                 magnitude_label[index] = mag
             
-            # get csnet score of each perturbated image
+            # get csnet score of each perturbed image
             score = get_csnet_score([pseudo_image], csnet, device)[0].item()
             pseudo_data_list.append((score, adjustment_label, magnitude_label))
 
@@ -138,7 +138,7 @@ def make_annotations_for_unlabeled(image_list, image_dir_path):
         json.dump(annotation_list, f, indent=2)
     return
 
-def perturbating_for_labeled_data(image, bounding_box, func):
+def perturbing_for_labeled_data(image, bounding_box, func):
     output = None
     for i in range(0, 100000):
         if func == 0:
@@ -151,7 +151,7 @@ def perturbating_for_labeled_data(image, bounding_box, func):
             break
     if output == None:
         return None
-    perturbated_image, operator, new_box = output
+    perturbed_image, operator, new_box = output
     if func != 3:
         new_box = [
             [new_box[0], new_box[1]],
@@ -175,7 +175,7 @@ def perturbating_for_labeled_data(image, bounding_box, func):
     adjustment[adjustment_index] = 1.0
     magnitude[adjustment_index] = -operator[func]
 
-    return perturbated_image, new_box, adjustment, magnitude
+    return perturbed_image, new_box, adjustment, magnitude
 
 def make_annotation_for_labeled(image_path, bounding_box):
     image = Image.open(image_path)
@@ -184,7 +184,7 @@ def make_annotation_for_labeled(image_path, bounding_box):
     best_crop = image.crop(bounding_box)
     best_crop.save(os.path.join('./data/image/image_labeled_vapnet', image_name + f'_-1.jpg'))
     annotation_list = []
-    perturbated_image_cnt = [0, 0, 0]
+    perturbed_image_cnt = [0, 0, 0]
     box_corners = [
         [bounding_box[0], bounding_box[1]],
         [bounding_box[0], bounding_box[3]],
@@ -195,34 +195,34 @@ def make_annotation_for_labeled(image_path, bounding_box):
     i = 0
     while i < len(func_index):
         func = func_index[i]
-        output = perturbating_for_labeled_data(image, bounding_box, func)
+        output = perturbing_for_labeled_data(image, bounding_box, func)
         if output == None:
             i += 1
             continue
-        perturbated_image = output[0]
+        perturbed_image = output[0]
         new_box = output[1]
         adjustment_label = output[2]
         magnitude_label = output[3]
-        perturbated_image_name = image_name + f'_{func}_{perturbated_image_cnt[i]}.jpg'
+        perturbed_image_name = image_name + f'_{func}_{perturbed_image_cnt[i]}.jpg'
         annotation = {
-            'name': perturbated_image_name,
+            'name': perturbed_image_name,
             'bounding_box': box_corners,
-            'perturbated_bounding_box': new_box,
+            'perturbed_bounding_box': new_box,
             'suggestion': [1.0],
             'adjustment': adjustment_label,
             'magnitude': magnitude_label
         }
-        perturbated_image.save(os.path.join('./data/image/image_labeled_vapnet', perturbated_image_name))
+        perturbed_image.save(os.path.join('./data/image/image_labeled_vapnet', perturbed_image_name))
         annotation_list.append(annotation)
-        if perturbated_image_cnt[i] < 4:
-            perturbated_image_cnt[i] += 1
+        if perturbed_image_cnt[i] < 4:
+            perturbed_image_cnt[i] += 1
             i -= 1
         i += 1
 
     annotation_list.append({
         'name': image_name + f'_-1.jpg',
         'bounding_box': box_corners,
-        'perturbated_bounding_box': box_corners,
+        'perturbed_bounding_box': box_corners,
         'suggestion': [0.0],
         'adjustment': [0.0] * 6,
         'magnitude': [0.0] * 6
@@ -255,8 +255,8 @@ def count_images_by_perturbation(annotation_path):
         else:
             print(data)
             cnt[adjustment.index(1.0)] += 1
-    perturbated_image_sum = sum(cnt) - cnt[6]
-    print(perturbated_image_sum)
+    perturbed_image_sum = sum(cnt) - cnt[6]
+    print(perturbed_image_sum)
     print(cnt)
     return
 
@@ -266,11 +266,11 @@ def remove_duplicated_box(annotation_path):
     with open(annotation_path, 'r') as f:
         data_list = json.load(f)
     for data in data_list:
-        new_box = data['perturbated_bounding_box']
+        new_box = data['perturbed_bounding_box']
         bounding_box = data['bounding_box']
         flag = False
         for new_data in new_data_list:
-            if new_data['bounding_box'] == bounding_box and new_data['perturbated_bounding_box'] == new_box:
+            if new_data['bounding_box'] == bounding_box and new_data['perturbed_bounding_box'] == new_box:
                 flag = True
                 break
         if flag == False:
