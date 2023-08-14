@@ -30,7 +30,7 @@ class CSNet(nn.Module):
         spp = self.spatial_pyramid_pool(feature_map, feature_map.shape[0], self.spp_pool_size)
         feature_vector = self.last_layer(spp)
 
-        output = self.output_layer(feature_vector)
+        output = self.output_layer(feature_vector) * 5
         return output
     
     def build_backbone(self, pretrained):
@@ -65,6 +65,6 @@ if __name__ == '__main__':
     cfg = Config()
     model = CSNet(cfg)
     model.eval()
-    x = torch.randn((1, 3, 224, 224))
+    x = torch.randn((2, 3, 224, 224))
     output = model(x)
     print(output)
