@@ -65,7 +65,7 @@ class Trainer(object):
             self.model.train().to(self.device)
 
             sc_data_list = data
-            sc_images = [self.make_image_crops(x[0], x[2]) for x in sc_data_list]
+            sc_images = [x[0] for x in sc_data_list]
             sc_scores = [x[1] for x in sc_data_list]
             sc_images, sc_scores = self.shuffle_two_lists_in_same_order(sc_images, sc_scores)
             

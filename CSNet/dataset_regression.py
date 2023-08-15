@@ -19,11 +19,11 @@ class SCDataset(Dataset):
         self.dataset_path = self.cfg.scored_crops_data
         
         if mode == 'train':
-            self.annotation_path = os.path.join(self.dataset_path, 'crops_training_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'cropped_training_set.json')
             self.random_crops_count = self.cfg.scored_crops_N       
             
         if mode == 'test':
-            self.annotation_path = os.path.join(self.dataset_path, 'crops_testing_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'cropped_testing_set.json')
             self.random_crops_count = self.cfg.test_crops_N
 
         self.image_list, self.data_list = self.build_data_list()
@@ -33,15 +33,9 @@ class SCDataset(Dataset):
     
     def __getitem__(self, index):
         image = self.image_list[index]
-        crops_list = self.data_list[index]
+        score = self.data_list[index]
 
-        score_list = [x['score'] for x in crops_list]
-        # revise the score of CPC dataset to 5
-        if len(score_list) <= 24:
-            score_list = [round(x * 5 / 4, 2) for x in score_list]
-        box_list = [x['crop'] for x in crops_list]
-
-        return image, score_list, box_list
+        return image, score
 
     def build_data_list(self):
         def horizontal_flip_bounding_box(image_size, data):
@@ -56,15 +50,15 @@ class SCDataset(Dataset):
         with open(self.annotation_path, 'r') as f:
             data_list = json.load(f)
         image_list = []
-        crops_list = []
+        score_list = []
         for data in data_list:
             image_src = Image.open(os.path.join(self.image_dir, data['name']))
             image_fliped = image_src.transpose(PIL.Image.FLIP_LEFT_RIGHT)
             image_list.append(image_src)
             image_list.append(image_fliped)
-            crops_list.append(data['crops'])
-            crops_list.append([horizontal_flip_bounding_box(image_src.size, x.copy()) for x in data['crops']])
-        return image_list, crops_list
+            score_list.append(data['score'])
+            score_list.append(data['score'])
+        return image_list, score_list
 
 # best crop dataset
 class BCDataset(Dataset):

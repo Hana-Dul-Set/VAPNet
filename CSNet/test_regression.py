@@ -54,7 +54,7 @@ class Tester(object):
         with torch.no_grad():
             for index, data in tqdm(enumerate(self.sc_loader), total=self.data_length):
                 sc_data_list = data
-                sc_images = [self.make_image_crops(x[0], x[2]) for x in sc_data_list]
+                sc_images = [x[0] for x in sc_data_list]
                 sc_scores = [x[1] for x in sc_data_list]
                 
                 sc_images = self.convert_image_list_to_tensor(list(chain(*sc_images)))
