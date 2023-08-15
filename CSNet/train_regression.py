@@ -1,6 +1,8 @@
 import os
 from itertools import chain
 
+import PIL
+from PIL import Image
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -65,8 +67,18 @@ class Trainer(object):
             self.model.train().to(self.device)
 
             sc_data_list = data
-            sc_images = [x[0] for x in sc_data_list]
-            sc_scores = [x[1] for x in sc_data_list]
+            sc_image_names = [x[0] for x in sc_data_list]
+
+            sc_images = []
+            sc_scores = []
+            for index, image_name in enumerate(sc_image_names):
+                image = Image.open(os.path.join(self.image_dir, image_name))
+                sc_images.append(image)
+                image_fliped = image.transpose(PIL.Image.FLIP_LEFT_RIGHT)
+                sc_images.append(image_fliped)
+                sc_scores.append(data[index][1])
+                sc_scores.append(data[index][1])
+            
             sc_images, sc_scores = self.shuffle_two_lists_in_same_order(sc_images, sc_scores)
             
             sc_images = self.convert_image_list_to_tensor(list(chain(*sc_images)))

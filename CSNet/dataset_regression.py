@@ -32,10 +32,10 @@ class SCDataset(Dataset):
         return len(self.image_list)
     
     def __getitem__(self, index):
-        image = self.image_list[index]
+        image_name = self.image_list[index]
         score = self.data_list[index]
 
-        return image, score
+        return image_name, score
 
     def build_data_list(self):
         def horizontal_flip_bounding_box(image_size, data):
@@ -49,15 +49,8 @@ class SCDataset(Dataset):
         data_list = []
         with open(self.annotation_path, 'r') as f:
             data_list = json.load(f)
-        image_list = []
-        score_list = []
-        for data in data_list:
-            image_src = Image.open(os.path.join(self.image_dir, data['name']))
-            image_fliped = image_src.transpose(PIL.Image.FLIP_LEFT_RIGHT)
-            image_list.append(image_src)
-            image_list.append(image_fliped)
-            score_list.append(data['score'])
-            score_list.append(data['score'])
+        image_list = [x['name'] for x in data_list]
+        score_list = [x['score'] for x in data_list]
         return image_list, score_list
 
 # best crop dataset
