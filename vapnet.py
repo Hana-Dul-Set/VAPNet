@@ -12,7 +12,7 @@ class VAPNet(nn.Module):
         self.backbone = self.build_backbone(pretrained=True)
 
         self.spp_pool_size = [5, 2, 1]
-        self.adjustment_count = 6
+        self.adjustment_count = self.cfg.adjustment_count
         
         self.last_layer = nn.Sequential(
             nn.Linear(38400, 1024),

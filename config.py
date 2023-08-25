@@ -12,7 +12,7 @@ class Config:
         self.unlabeled_data = os.path.join(self.data_dir, 'unlabeled_vapnet')
         self.labeled_data = os.path.join(self.data_dir, 'labeled_vapnet')
 
-        self.adjustment_count = 6
+        self.adjustment_count = 4
         self.fpr_limit = 0.3
 
         self.gpu_id = 0

@@ -49,7 +49,9 @@ class UnlabledDataset(Dataset):
     def __init__(self, mode, cfg) :
         self.cfg = cfg
 
-        self.image_dir = self.cfg.image_dir
+        
+        # self.image_dir = self.cfg.image_dir
+        self.image_dir = './data/open_images'
         self.dataset_path = self.cfg.unlabeled_data
         
         if mode == 'train':
