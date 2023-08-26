@@ -1,5 +1,7 @@
 import os
 
+import PIL
+from PIL import Image
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -49,6 +51,8 @@ class Trainer(object):
         self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(cfg)
+
+        self.sc_random_crops_count = self.cfg.scored_crops_N
 
         self.sc_batch_size = self.cfg.scored_crops_batch_size
         self.bc_batch_size = self.cfg.best_crop_K
@@ -209,7 +213,7 @@ class Trainer(object):
         random.shuffle(combined_lists)
         shuffled_list1, shuffled_list2 = zip(*combined_lists)
         return list(shuffled_list1), list(shuffled_list2)
-            
+    """
     def make_pairs_scored_crops(self, data):
         image = data[0]
         crops_list = data[1]
@@ -229,6 +233,53 @@ class Trainer(object):
         for pos_box, neg_box in boudning_box_pairs:
             pos_image = image.crop(pos_box)
             neg_image = image.crop(neg_box)
+            pos_images.append(pos_image)
+            neg_images.append(neg_image)
+
+            # augmentation by filling zero pixels
+            augmented_pos_image, augmented_neg_image = self.augment_pair((pos_image, neg_image), labeled=True)
+            pos_images.append(augmented_pos_image)
+            neg_images.append(augmented_neg_image)
+
+        if len(pos_images) != 0:
+            pos_images, neg_images = self.shuffle_two_lists_in_same_order(pos_images, neg_images)
+
+        return pos_images, neg_images
+    """
+    def make_pairs_scored_crops(self, data_list):
+        # open images and augment for h-flip
+        crops_list = []
+        for data in data_list:
+            image_name = data['name']
+            score = data['score']
+            image = Image.open(os.path.join(self.image_dir, image_name))
+            crops_list.append({
+                'image': image,
+                'score': score
+            })
+            crops_list.append({
+                'image': image.transpose(PIL.Image.FLIP_LEFT_RIGHT),
+                'score': score
+            })
+
+        # select images randomly to make pairs
+        selected_crops_list = random.sample(crops_list, self.sc_random_crops_count)
+
+        # sort in descending order by score
+        sorted_crops_list = sorted(selected_crops_list, key = lambda x: -x['score'])
+
+        image_pairs = []
+        for i in range(len(sorted_crops_list)):
+            for j in range(i + 1, len(sorted_crops_list)):
+                if sorted_crops_list[i]['score'] == sorted_crops_list[j]['score']:
+                    continue
+                i_image = sorted_crops_list[i]['image']
+                j_image = sorted_crops_list[j]['image']
+                image_pairs.append((i_image, j_image))
+
+        pos_images = []
+        neg_images = []
+        for pos_image, neg_image in image_pairs:
             pos_images.append(pos_image)
             neg_images.append(neg_image)
 

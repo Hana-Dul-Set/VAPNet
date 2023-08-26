@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from config import Config
 
 Image.MAX_IMAGE_PIXELS = None
-
+"""
 # scored crops dataset
 class SCDataset(Dataset):
     def __init__(self, mode, cfg) :
@@ -19,11 +19,11 @@ class SCDataset(Dataset):
         self.dataset_path = self.cfg.scored_crops_data
         
         if mode == 'train':
-            self.annotation_path = os.path.join(self.dataset_path, 'crops_training_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'crops_training_set_fixed.json')
             self.random_crops_count = self.cfg.scored_crops_N       
             
         if mode == 'test':
-            self.annotation_path = os.path.join(self.dataset_path, 'crops_testing_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'crops_testing_set_fixed.json')
             self.random_crops_count = self.cfg.test_crops_N
 
         self.image_list, self.data_list = self.build_data_list()
@@ -49,7 +49,7 @@ class SCDataset(Dataset):
         data_list = []
         with open(self.annotation_path, 'r') as f:
             data_list = json.load(f)
-        data_list = data_list[:100]
+        data_list = data_list[:200]
         image_list = []
         crops_list = []
         for data in data_list:
@@ -60,6 +60,40 @@ class SCDataset(Dataset):
             crops_list.append(data['crops'])
             crops_list.append([horizontal_flip_bounding_box(image_src.size, x.copy()) for x in data['crops']])
         return image_list, crops_list
+"""
+# scored crops dataset
+class SCDataset(Dataset):
+    def __init__(self, mode, cfg) :
+        self.cfg = cfg
+
+        self.image_dir = self.cfg.image_dir
+        self.dataset_path = self.cfg.scored_crops_data
+        
+        if mode == 'train':
+            # self.annotation_path = os.path.join(self.dataset_path, 'crops_training_set_fixed.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'cropped_set.json')
+            self.random_crops_count = self.cfg.scored_crops_N       
+            
+        if mode == 'test':
+            self.annotation_path = os.path.join(self.dataset_path, 'crops_testing_set_fixed.json')
+            self.random_crops_count = self.cfg.test_crops_N
+
+        self.data_list = self.build_data_list()
+
+    def __len__(self):
+        return len(self.data_list)
+    
+    def __getitem__(self, index):
+        crops_list = self.data_list[index]
+        return crops_list
+
+    def build_data_list(self):
+        data_list = []
+        with open(self.annotation_path, 'r') as f:
+            data_list = json.load(f)
+        data_list = data_list[:20]
+        data_list = [x['crops'] for x in data_list]
+        return data_list
 
 # best crop dataset
 class BCDataset(Dataset):
@@ -70,10 +104,10 @@ class BCDataset(Dataset):
         self.dataset_path = self.cfg.best_crop_data
         
         if mode == 'train':
-            self.annotation_path = os.path.join(self.dataset_path, 'best_training_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'best_training_set_fixed.json')
 
         if mode == 'test':
-            self.annotation_path = os.path.join(self.dataset_path, 'best_testing_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'best_testing_set_fixed.json')
 
         self.image_list, self.data_list = self.build_data_list()
 
