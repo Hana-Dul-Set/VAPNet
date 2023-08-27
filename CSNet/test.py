@@ -1,5 +1,7 @@
 import os
+import random
 
+from PIL import Image
 import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
@@ -33,6 +35,7 @@ class Tester(object):
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
         self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
+        self.sc_random_crops_count = self.cfg.test_crops_N
         self.sc_batch_size = self.cfg.scored_crops_batch_size
 
         self.loss_fn = torch.nn.MarginRankingLoss(margin=self.cfg.pairwise_margin, reduction='mean')
@@ -71,7 +74,7 @@ class Tester(object):
         ave_loss = self.loss_sum / self.test_iter
         accuracy = self.correct_prediction_counts / self.total_prediction_counts
         test_log = f'Loss: {ave_loss:.5f}, Accuracy: {accuracy *  100:.2f} %'
-        wandb.log({"test_loss": ave_loss, "accuracy": accuracy})
+        # wandb.log({"test_loss": ave_loss, "accuracy": accuracy})
         with open('./test_log.txt', 'a') as f:
             f.write(f'{ave_loss}/{accuracy}\n')
         print(test_log)
@@ -102,7 +105,7 @@ class Tester(object):
         comparison_result = pos_scores > neg_scores
         correct_prediction_counts = comparison_result.sum(dim=0)
         return loss, correct_prediction_counts, total_prediction_counts
-            
+    """     
     def make_pairs_scored_crops(self, data):
         image = data[0]
         crops_list = data[1]
@@ -127,6 +130,41 @@ class Tester(object):
             neg_images.append(neg_image)
 
         return pos_images, neg_images
+    """
+    def make_pairs_scored_crops(self, data_list):
+        # open images and augment for h-flip
+        crops_list = []
+        for data in data_list:
+            image_name = data['name']
+            score = data['score']
+            image = Image.open(os.path.join(self.image_dir, image_name))
+            crops_list.append({
+                'image': image,
+                'score': score
+            })
+
+        # select images randomly to make pairs
+        selected_crops_list = random.sample(crops_list, self.sc_random_crops_count)
+
+        # sort in descending order by score
+        sorted_crops_list = sorted(selected_crops_list, key = lambda x: -x['score'])
+
+        image_pairs = []
+        for i in range(len(sorted_crops_list)):
+            for j in range(i + 1, len(sorted_crops_list)):
+                if sorted_crops_list[i]['score'] == sorted_crops_list[j]['score']:
+                    continue
+                i_image = sorted_crops_list[i]['image']
+                j_image = sorted_crops_list[j]['image']
+                image_pairs.append((i_image, j_image))
+
+        pos_images = []
+        neg_images = []
+        for pos_image, neg_image in image_pairs:
+            pos_images.append(pos_image)
+            neg_images.append(neg_image)
+
+        return pos_images, neg_images
     
 def test_while_training():
     cfg = Config()
@@ -140,7 +178,7 @@ def test_while_training():
 
 if __name__ == '__main__':
     cfg = Config()
-
+    """
     wandb.init(
         # set the wandb project where this run will be logged
         project="my-awesome-project",
@@ -154,12 +192,14 @@ if __name__ == '__main__':
         "memo": "failed"
         }
     )
-
+    """
     model = CSNet(cfg)
+    """
     weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     model.load_state_dict(torch.load(weight_file))
+    """
 
     tester = Tester(model, cfg)
     tester.run()
 
-    wandb.finish()
+    # wandb.finish()
