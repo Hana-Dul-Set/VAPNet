@@ -68,7 +68,7 @@ class SCDataset(Dataset):
 
         self.image_dir = self.cfg.image_dir
         self.dataset_path = self.cfg.scored_crops_data
-        
+    
         if mode == 'train':
             # self.annotation_path = os.path.join(self.dataset_path, 'crops_training_set_fixed.json')
             self.annotation_path = os.path.join(self.dataset_path, 'cropped_training_set_fixed_score.json')
