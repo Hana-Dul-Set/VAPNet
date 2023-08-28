@@ -71,11 +71,11 @@ class SCDataset(Dataset):
         
         if mode == 'train':
             # self.annotation_path = os.path.join(self.dataset_path, 'crops_training_set_fixed.json')
-            self.annotation_path = os.path.join(self.dataset_path, 'cropped_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'cropped_training_set_fixed_score.json')
             self.random_crops_count = self.cfg.scored_crops_N       
             
         if mode == 'test':
-            self.annotation_path = os.path.join(self.dataset_path, 'crops_testing_set_fixed.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'cropped_testing_set_fixed_score.json')
             self.random_crops_count = self.cfg.test_crops_N
 
         self.data_list = self.build_data_list()

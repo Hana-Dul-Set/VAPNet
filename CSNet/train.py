@@ -50,7 +50,7 @@ class Trainer(object):
         self.image_dir = self.cfg.image_dir
 
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_loader, self.bc_loader, self.un_loader = build_dataloader(cfg)
 
@@ -77,7 +77,6 @@ class Trainer(object):
         self.un_loss_sum = 0
 
         self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
         ])
@@ -361,10 +360,10 @@ class Trainer(object):
 
 if __name__ == '__main__':
     cfg = Config()
-    """
+    
     wandb.init(
         # set the wandb project where this run will be logged
-        project="three_data_loader",
+        project="three_data_loader_cropped",
         
         # track hyperparameters and run metadata
         config={
@@ -375,7 +374,7 @@ if __name__ == '__main__':
         "memo": "None"
         }
     )
-    """
+    
     model = CSNet(cfg)
     # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     # model.load_state_dict(torch.load(weight_file))
