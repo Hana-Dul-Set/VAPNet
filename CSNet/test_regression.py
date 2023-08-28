@@ -1,6 +1,8 @@
 import os
 from itertools import chain
 
+import cv2
+import numpy as np
 import PIL
 from PIL import Image
 import torch
@@ -41,7 +43,6 @@ class Tester(object):
         self.loss_fn = torch.nn.MSELoss(reduction='mean')
 
         self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
         ])
@@ -88,8 +89,16 @@ class Tester(object):
     def convert_image_list_to_tensor(self, image_list):
         tensor = []
         for image in image_list:
-            tensor.append(self.transformer(image))
+            # Grayscale to RGB
+            if len(image.getbands()) == 1:
+                rgb_image = Image.new("RGB", image.size)
+                rgb_image.paste(image, (0, 0, image.width, image.height))
+                image = rgb_image
+            np_image = np.array(np_image)
+            np_image = cv2.resize(np_image, self.cfg.image_size)
+            tensor.append(self.transformer(np_image))
         tensor = torch.stack(tensor, dim=0)
+        
         return tensor
 
     def calculate_mse_loss(self, images, scores):

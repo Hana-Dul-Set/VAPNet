@@ -1,6 +1,8 @@
 import os
 from itertools import chain
 
+import cv2
+import numpy as np
 import PIL
 from PIL import Image
 import torch
@@ -55,7 +57,6 @@ class Trainer(object):
         self.sc_loss_sum = 0
 
         self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
         ])
@@ -118,7 +119,9 @@ class Trainer(object):
                 rgb_image = Image.new("RGB", image.size)
                 rgb_image.paste(image, (0, 0, image.width, image.height))
                 image = rgb_image
-            tensor.append(self.transformer(image))
+            np_image = np.array(np_image)
+            np_image = cv2.resize(np_image, self.cfg.image_size)
+            tensor.append(self.transformer(np_image))
         tensor = torch.stack(tensor, dim=0)
         
         return tensor
