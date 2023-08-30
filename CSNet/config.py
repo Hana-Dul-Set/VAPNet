@@ -22,10 +22,10 @@ class Config:
         self.max_epoch = 100000
 
         self.scored_crops_batch_size = 1
-        self.scored_crops_N = 5
-        self.test_crops_N = 8
-        self.best_crop_K = 8
-        self.unlabeled_P = 8
+        self.scored_crops_N = 16
+        self.test_crops_N = 16
+        self.best_crop_K = 16
+        self.unlabeled_P = 16
 
         self.image_size = (224, 224)
         self.mean = [0.485, 0.456, 0.406]

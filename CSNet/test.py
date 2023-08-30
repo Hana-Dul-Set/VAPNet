@@ -35,7 +35,7 @@ class Tester(object):
 
         self.sc_loader = build_dataloader(self.cfg)
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
         self.sc_random_crops_count = self.cfg.test_crops_N
         self.sc_batch_size = self.cfg.scored_crops_batch_size
@@ -75,7 +75,7 @@ class Tester(object):
         ave_loss = self.loss_sum / self.test_iter
         accuracy = self.correct_prediction_counts / self.total_prediction_counts
         test_log = f'Loss: {ave_loss:.5f}, Accuracy: {accuracy *  100:.2f} %'
-        # wandb.log({"test_loss": ave_loss, "accuracy": accuracy})
+        wandb.log({"test_loss": ave_loss, "accuracy": accuracy})
         with open('./test_log.txt', 'a') as f:
             f.write(f'{ave_loss}/{accuracy}\n')
         print(test_log)
