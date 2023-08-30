@@ -1,16 +1,12 @@
 import os
-import math
-
 import json
+
+import cv2
+import numpy as np
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
-import tqdm
-
-from CSNet.image_utils.image_preprocess import get_shifted_image, get_zooming_image, get_rotated_image
-from CSNet.csnet import get_pretrained_CSNet
-from config import Config
 
 # best crop dataset for training(FCDB, GAICD)
 class BCDataset(Dataset):
@@ -21,7 +17,7 @@ class BCDataset(Dataset):
         self.dataset_path = self.cfg.best_crop_data
         
         if mode == 'train':
-            self.annotation_path = os.path.join(self.dataset_path, 'best_training_set.json')
+            self.annotation_path = os.path.join(self.dataset_path, 'best_training_set_fixed.json')
 
         self.image_list, self.data_list = self.build_data_list()
 
@@ -48,7 +44,6 @@ class BCDataset(Dataset):
 class UnlabledDataset(Dataset):
     def __init__(self, mode, cfg) :
         self.cfg = cfg
-
         
         # self.image_dir = self.cfg.image_dir
         self.image_dir = './data/open_images'
@@ -91,7 +86,6 @@ class LabledDataset(Dataset):
         self.data_list = self.build_data_list()
 
         self.transformer = transforms.Compose([
-            transforms.Resize(cfg.image_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=cfg.mean, std=cfg.std)
         ])
@@ -104,11 +98,15 @@ class LabledDataset(Dataset):
         image_name = data['name']
         image = Image.open(os.path.join(self.image_dir, image_name))
         image_size = torch.tensor(image.size)
+
         if len(image.getbands()) == 1:
             rgb_image = Image.new("RGB", image.size)
             rgb_image.paste(image, (0, 0, image.width, image.height))
             image = rgb_image
-        transformed_image = self.transformer(image)
+        np_image = np.array(image)
+        np_image = cv2.resize(np_image, self.cfg.image_size)
+        transformed_image = self.transformer(np_image)
+        
         bounding_box = torch.tensor(data['bounding_box'])
         perturbed_bounding_box = torch.tensor(data['perturbed_bounding_box'])
         suggestion_label = torch.tensor(data['suggestion'])

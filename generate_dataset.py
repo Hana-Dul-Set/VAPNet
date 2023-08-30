@@ -12,7 +12,6 @@ from CSNet.csnet import get_pretrained_CSNet
 from config import Config
 
 def get_csnet_score(image_list, csnet, device):
-    # device = None
     image_size = (224, 224)
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
@@ -47,8 +46,8 @@ def make_pseudo_label(image_path):
     # zoom_in_magnitude = [-x * 0.05 for x in range(1, 10, 1)]
     # zoom_out_magnitude = [x * 0.05 for x in range(1, 10, 1)]
 
-    clockwise_magnitude = [-x * math.pi / 36 for x in range(1, 10, 1)]
-    counter_clokwise_magnitude = [x * math.pi / 36 for x in range(1, 10, 1)]
+    # clockwise_magnitude = [-x * math.pi / 36 for x in range(1, 10, 1)]
+    # counter_clokwise_magnitude = [x * math.pi / 36 for x in range(1, 10, 1)]
 
     adjustment_magnitude_list = [left_shift_magnitude,
                                  right_shift_magnitude,
@@ -56,10 +55,11 @@ def make_pseudo_label(image_path):
                                  down_shift_magnitude,
                                  # zoom_in_magnitude,
                                  # zoom_out_magnitude,
-                                 clockwise_magnitude,
-                                 counter_clokwise_magnitude]
+                                 # clockwise_magnitude,
+                                 # counter_clokwise_magnitude
+                                ]
     
-    device = 'cpu'
+    device = 'mps:0'
     csnet = get_pretrained_CSNet(device)
     pseudo_data_list = []
     
@@ -79,7 +79,7 @@ def make_pseudo_label(image_path):
                                                  option='vapnet',
                                                  mag=mag,
                                                  direction=0)
-                magnitude_label[index] = mag
+                magnitude_label[index] = mag if mag >= 0 else -mag
             # get horiziontal shifted images
             elif 2 <= index < 4:
                 pseudo_image = get_shifted_image(image,
@@ -88,7 +88,7 @@ def make_pseudo_label(image_path):
                                                  option='vapnet',
                                                  mag=mag,
                                                  direction=1)
-                magnitude_label[index] = mag
+                magnitude_label[index] = mag if mag >= 0 else -mag
             # get clockwise and counter clockwise rotated images
             elif 4 <= index < 6:
                 pseudo_image = get_rotated_image(image,
@@ -109,28 +109,30 @@ def make_pseudo_label(image_path):
     best_adjustment_label = pseudo_data_list[0]
     best_adjustment_score = best_adjustment_label[0]
 
+    """
     print("pseudo_data_list:", pseudo_data_list)
     print("length:", len(pseudo_data_list))
     print("original_image_score:", original_image_score)
+    """
 
     if original_image_score + 0.2 < best_adjustment_score:
         return {
             'name': image_name,
-            'suggestion': 1.0,
+            'suggestion': [1.0],
             'adjustment': best_adjustment_label[1],
             'magnitude': best_adjustment_label[2]
         }
     else:
         return {
             'name': image_name,
-            'suggestion': 0.0,
+            'suggestion': [0.0],
             'adjustment': [0.0] * len(adjustment_magnitude_list),
             'magnitude': [0.0] * len(adjustment_magnitude_list)
         }
     
 def make_annotations_for_unlabeled(image_list, image_dir_path):
     annotation_list = []
-    for image_name in image_list:
+    for image_name in tqdm.tqdm(image_list):
         image_path = os.path.join(image_dir_path, image_name)
         annotation = make_pseudo_label(image_path)
         annotation_list.append(annotation)
@@ -159,8 +161,8 @@ def perturbing_for_labeled_data(image, bounding_box, func):
             [new_box[2], new_box[3]],
             [new_box[2], new_box[1]],
         ]
-    adjustment = [0.0] * 6
-    magnitude = [0.0] * 6
+    adjustment = [0.0] * 4
+    magnitude = [0.0] * 4
     if operator[func] < 0:
         if func == 3:
             adjustment_index = (func - 1) * 2
@@ -173,7 +175,7 @@ def perturbing_for_labeled_data(image, bounding_box, func):
             adjustment_index = func * 2 + 1
 
     adjustment[adjustment_index] = 1.0
-    magnitude[adjustment_index] = -operator[func]
+    magnitude[adjustment_index] = operator[func] if operator[func] >= 0 else -operator[func]
 
     return perturbed_image, new_box, adjustment, magnitude
 
@@ -191,7 +193,7 @@ def make_annotation_for_labeled(image_path, bounding_box):
         [bounding_box[2], bounding_box[3]],
         [bounding_box[2], bounding_box[1]],   
     ]
-    func_index = [0, 1, 3]
+    func_index = [0, 1]
     i = 0
     while i < len(func_index):
         func = func_index[i]
@@ -224,8 +226,8 @@ def make_annotation_for_labeled(image_path, bounding_box):
         'bounding_box': box_corners,
         'perturbed_bounding_box': box_corners,
         'suggestion': [0.0],
-        'adjustment': [0.0] * 6,
-        'magnitude': [0.0] * 6
+        'adjustment': [0.0] * 4,
+        'magnitude': [0.0] * 4
     })
     return annotation_list
 
@@ -246,16 +248,16 @@ def count_images_by_perturbation(annotation_path):
     with open(annotation_path, 'r') as f:
         data_list = json.load(f)
     
-    cnt = [0, 0, 0, 0, 0, 0, 0]
+    cnt = [0, 0, 0, 0, 0]
     for data in data_list:
         suggestion = data['suggestion']
         adjustment = data['adjustment']
         if suggestion == [0.0]:
-            cnt[6] += 1
+            cnt[4] += 1
         else:
             print(data)
             cnt[adjustment.index(1.0)] += 1
-    perturbed_image_sum = sum(cnt) - cnt[6]
+    perturbed_image_sum = sum(cnt) - cnt[4]
     print(perturbed_image_sum)
     print(cnt)
     return
@@ -277,16 +279,25 @@ def remove_duplicated_box(annotation_path):
             new_data_list.append(data)
     with open(annotation_path, 'w') as f:
         json.dump(new_data_list, f, indent=2)
+    image_list = os.listdir('./data/image/image_labeled_vapnet')
+    name_list = [x['name'] for x in new_data_list]
+    for image in image_list:
+        if image not in name_list:
+            os.remove(os.path.join('./data/image/image_labeled_vapnet', image))
 
 if __name__ == '__main__':
     cfg = Config()
     data_list = []
 
-    labeled_annotation_path = './data/annotation/best_crop/best_testing_set.json'
-    
-    print(make_pseudo_label('./data/sample.jpg'))
+    image_list = os.listdir('./data/open_images')
+    image_list = image_list[:100]
+    make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
+
     """
-    with open('./data/annotation/best_crop/best_testing_set.json', 'r') as f:
+    labeled_annotation_path = './data/annotation/best_crop/best_testing_set_fixed.json'
+    with open(labeled_annotation_path, 'r') as f:
         data_list = json.load(f)
     make_annotations_for_labeled(data_list, './data/image')
+    remove_duplicated_box('./data/annotation/labeled_vapnet/labeled_testing_set.json')
+    count_images_by_perturbation('./data/annotation/labeled_vapnet/labeled_testing_set.json')
     """

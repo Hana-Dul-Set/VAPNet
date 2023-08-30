@@ -1,6 +1,8 @@
 import os
 import random
 
+import cv2
+import numpy as np
 from PIL import Image
 import torch
 import torch.optim as optim
@@ -56,7 +58,6 @@ class Trainer(object):
         self.max_epoch = self.cfg.max_epoch
 
         self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
         ])
@@ -108,11 +109,12 @@ class Trainer(object):
             image_list, gt_suggestion_list, gt_adjustment_list, gt_magnitude_list = [list(x) for x in zip(*combined_list)]
             
             # model inference
-            predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(self.convert_image_list_to_tensor(image_list))
+            predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(self.convert_image_list_to_tensor(image_list).to(self.device))
 
             # calculate suggestion loss using BCELoss
+            print(gt_suggestion_list)
             gt_suggestion_list = torch.tensor(gt_suggestion_list).to(self.device)       
-            suggestion_loss = self.suggestion_loss_fn(gt_suggestion_list, predicted_suggestion)
+            suggestion_loss = self.suggestion_loss_fn(predicted_suggestion, gt_suggestion_list)
             self.suggestion_loss_sum += suggestion_loss.item()
 
             # filter no suggestion cases
@@ -139,11 +141,11 @@ class Trainer(object):
             gt_adjustment_list = torch.index_select(gt_adjustment_list, dim=0, index=suggested_index)
             gt_magnitude_list = torch.index_select(gt_magnitude_list, dim=0, index=suggested_index)
 
-            # calculate adjust loss using CrossEntropyLoss
-            adjustment_loss = self.adjustment_loss_fn(gt_adjustment_list, predicted_adjustment)
+            # calculate adjustment loss using CrossEntropyLoss
+            adjustment_loss = self.adjustment_loss_fn(predicted_adjustment, gt_adjustment_list)
 
             # calculate magnitude loss using L1Loss
-            magnitude_loss = self.magnitude_loss_fn(gt_magnitude_list, predicted_magnitude)
+            magnitude_loss = self.magnitude_loss_fn(predicted_magnitude, gt_magnitude_list)
 
             total_loss = suggestion_loss + adjustment_loss + magnitude_loss
             train_log = f'suggestion loss:{suggestion_loss.item():.5f}/adjustment loss:{adjustment_loss.item():.5f}/magnitude loss:{magnitude_loss.item():.5f}/total loss:{total_loss:.5f}'
@@ -167,8 +169,11 @@ class Trainer(object):
                 rgb_image = Image.new("RGB", image.size)
                 rgb_image.paste(image, (0, 0, image.width, image.height))
                 image = rgb_image
-            tensor.append(self.transformer(image).to(self.device))
+            np_image = np.array(image)
+            np_image = cv2.resize(np_image, self.cfg.image_size)
+            tensor.append(self.transformer(np_image))
         tensor = torch.stack(tensor, dim=0)
+        
         return tensor
 
     def run(self):
@@ -200,14 +205,15 @@ class Trainer(object):
         image = Image.open(os.path.join(self.image_dir, image_name))
         best_crop_bounding_box = data[1]
 
-        func_choice = random.randint(0, 2)
+        func_choice = random.randint(0, 1)
         if func_choice == 0:
             output = get_shifted_image(image, best_crop_bounding_box, allow_zero_pixel=False, option='vapnet', direction=0)
         elif func_choice == 1:
             output = get_shifted_image(image, best_crop_bounding_box, allow_zero_pixel=False, option='vapnet', direction=1)
+        """
         elif func_choice == 2 :
             output = get_rotated_image(image, best_crop_bounding_box, allow_zero_pixel=False, option='vapnet')
-
+        """
         if output == None:
             return None
         perturbed_image, operator = output
@@ -220,15 +226,17 @@ class Trainer(object):
         if func_choice == 0:
             adjustment_index = 0 if operator[0] < 0 else 1
             adjustment_label[adjustment_index] = 1.0
-            magnitude_label[adjustment_index] = -operator[0]
+            magnitude_label[adjustment_index] = operator[0] if operator[0] >= 0 else -operator[0]
         if func_choice == 1:
             adjustment_index = 2 if operator[1] < 0 else 3
             adjustment_label[adjustment_index] = 1.0
-            magnitude_label[adjustment_index] = -operator[1]
+            magnitude_label[adjustment_index] = operator[1] if operator[1] >= 0 else -operator[1]
+        """
         if func_choice == 2:
             adjustment_index = 4 if operator[3] < 0 else 5
             adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = -operator[3]
+        """
 
         return perturbed_image, suggestion_label, adjustment_label, magnitude_label
 

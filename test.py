@@ -32,7 +32,7 @@ class Tester(object):
         self.data_loader = build_dataloader(self.cfg)
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
         self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
-        self.device = torch.device('cpu')
+        # self.device = torch.device('cpu')
 
         self.batch_size = self.cfg.batch_size
 
@@ -46,12 +46,9 @@ class Tester(object):
 
         self.fpr_limit = self.cfg.fpr_limit
 
-        self.transformer = transforms.Compose([
-            transforms.Resize(self.cfg.image_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=self.cfg.mean, std=self.cfg.std)
-        ])
-
+        self.suggestion_loss_sum = 0
+        self.adjustment_loss_sum = 0
+        self.magnitude_loss_sum = 0
         self.auc_score_sum = 0
         self.tpr_score_sum = 0
         self.f1_score_sum = [0] * (self.adjustment_count)
@@ -67,21 +64,30 @@ class Tester(object):
                 image_size = data[1].tolist()
                 gt_bounding_box = data[2].tolist()
                 gt_perturbed_bounding_box = data[3].tolist()
-                gt_suggesiton_label = data[4].numpy()
-                gt_adjustment_label = data[5].numpy()
-                gt_magnitude_label = data[6].numpy()
-                print(image_size)
+                gt_suggesiton_label = data[4].to(self.device)
+                gt_adjustment_label = data[5].to(self.device)
+                gt_magnitude_label = data[6].to(self.device)
+
                 # model inference
-                predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(image)
+                predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(image.to(self.device))
+
+                # caculate loss
+                self.suggestion_loss_sum += self.suggestion_loss_fn(predicted_suggestion, gt_suggesiton_label)
+                self.adjustment_loss_sum += self.adjustment_loss_fn(predicted_adjustment, gt_adjustment_label)
+                self.magnitude_loss_sum += self.magnitude_loss_fn(predicted_magnitude, gt_magnitude_label)
+
+                # convert tensor to numpy for using sklearn metrics
+                gt_suggesiton_label = gt_suggesiton_label.to('cpu').numpy()
+                gt_adjustment_label = gt_adjustment_label.to('cpu').numpy()
+                gt_magnitude_label = gt_magnitude_label.to('cpu').numpy()
+                predicted_suggestion = predicted_suggestion.to('cpu').numpy()
+                predicted_adjustment = predicted_adjustment.to('cpu').numpy()
+                predicted_magnitude = predicted_magnitude.to('cpu').numpy()
 
                 # calculate auc, tpr, and threshold for suggestion
                 auc_score, tpr_score, threshold = self.calculate_suggestion_accuracy(gt_suggesiton_label, predicted_suggestion)
                 
                 # remove no-suggested elements
-                predicted_suggestion = predicted_suggestion.to('cpu').numpy()
-                predicted_adjustment = predicted_adjustment.to('cpu').numpy()
-                predicted_magnitude = predicted_magnitude.to('cpu').numpy()
-
                 suggested_index = np.where(predicted_suggestion >= threshold)[0]
 
                 filtered_gt_adjustment_label = gt_adjustment_label[suggested_index]
@@ -146,20 +152,28 @@ class Tester(object):
         print('\n======test end======\n')
 
         # calculate ave score
+        ave_suggestion_loss = self.suggestion_loss_sum / self.data_length
+        ave_adjustment_loss = self.adjustment_loss_sum / self.data_length
+        ave_magnitude_loss = self.magnitude_loss_sum / self.data_length
         ave_auc_score = self.auc_score_sum / self.data_length
         ave_tpr_score = self.tpr_score_sum / self.data_length
         ave_f1_score = [x / self.data_length for x in self.f1_score_sum]
         ave_iou_score = self.iou_score_sum / self.data_length
 
+        loss_log = f'{ave_suggestion_loss}/{ave_adjustment_loss}/{ave_magnitude_loss}'
         accuracy_log = f'{ave_auc_score:.5f}/{ave_tpr_score:.5f}/{ave_f1_score}/{ave_iou_score:.5f}'
+        print(loss_log)
         print(accuracy_log)
+
 
     def calculate_suggestion_accuracy(self, gt_suggestion, predicted_suggestion):
         def find_idx_for_fpr(fpr):
             idices = np.where(np.abs(fpr - self.fpr_limit) == np.min(np.abs(fpr - self.fpr_limit)))
             return np.max(idices)
 
-        predicted_suggestion = predicted_suggestion.to('cpu')
+        gt_suggestion = np.array(gt_suggestion).flatten()
+        print(gt_suggestion)
+        predicted_suggestion = predicted_suggestion.flatten()
         fpr, tpr, cut = roc_curve(gt_suggestion, predicted_suggestion)
         auc_score = auc(fpr, tpr)
         idx = find_idx_for_fpr(fpr)
@@ -241,8 +255,8 @@ if __name__ == '__main__':
     cfg = Config()
 
     model = VAPNet(cfg)
-    # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
-    # model.load_state_dict(torch.load(weight_file))
+    weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
+    model.load_state_dict(torch.load(weight_file))
 
     tester = Tester(model, cfg)
     tester.run()
