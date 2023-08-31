@@ -198,7 +198,7 @@ class Tester(object):
     def calculate_f1_score(self, gt_adjustment, predicted_adjustment):
         def convert_one_hot_encoded_to_index(array):
             if np.all(array == 0):
-                return np.array(self.adjustment_count + 1)
+                return np.array(self.adjustment_count)
             one_index = np.where(array == 1)[0][0]
             return one_index
         
