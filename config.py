@@ -16,7 +16,7 @@ class Config:
         self.fpr_limit = 0.3
 
         self.gpu_id = 0
-        self.num_workers = 1
+        self.num_workers = 0
 
         self.batch_size = 64
         self.learning_rate = 2e-5

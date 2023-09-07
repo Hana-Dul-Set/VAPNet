@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 from tqdm import tqdm
+import wandb
 
 from config import Config
 from dataset import LabledDataset
@@ -162,6 +163,18 @@ class Tester(object):
 
         loss_log = f'{ave_suggestion_loss}/{ave_adjustment_loss}/{ave_magnitude_loss}'
         accuracy_log = f'{ave_auc_score:.5f}/{ave_tpr_score:.5f}/{ave_f1_score}/{ave_iou_score:.5f}'
+        """
+        wandb.log({"test_suggestion_loss": ave_suggestion_loss, "test_adjustment_loss": ave_adjustment_loss, "test_magnitude_loss": ave_magnitude_loss})
+        wandb.log({
+            "auc_score": ave_auc_score,
+            "tpr_score": ave_tpr_score,
+            "f1-score(left)": ave_f1_score[0],
+            "f1-score(right)": ave_f1_score[1],
+            "f1-score(up)": ave_f1_score[2],
+            "f1-score(down)": ave_f1_score[3],
+            "iou": ave_iou_score
+        })
+        """
         print(loss_log)
         print(accuracy_log)
 
@@ -230,8 +243,11 @@ class Tester(object):
             
             intersection_area = poly1.intersection(poly2).area
             union_area = poly1.union(poly2).area
+            print(intersection_area, union_area)
 
             iou = intersection_area / union_area if union_area > 0 else 0.0
+            print(iou)
+            input()
             return iou
         
         iou_sum = 0

@@ -1,7 +1,9 @@
 import os
 import math
 
+import cv2
 import json
+import numpy as np
 from PIL import Image
 import torch
 from torchvision.transforms import transforms
@@ -16,7 +18,6 @@ def get_csnet_score(image_list, csnet, device):
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
     transformer = transforms.Compose([
-        transforms.Resize(image_size),
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ])
@@ -27,7 +28,9 @@ def get_csnet_score(image_list, csnet, device):
             rgb_image = Image.new("RGB", image.size)
             rgb_image.paste(image, (0, 0, image.width, image.height))
             image = rgb_image
-        tensor.append(transformer(image))
+        np_image = np.array(image)
+        np_image = cv2.resize(np_image, (224, 224))
+        tensor.append(transformer(np_image))
     tensor = torch.stack(tensor, dim=0)
     tensor = tensor.to(device)
     score_list = csnet(tensor)
@@ -163,7 +166,7 @@ def perturbing_for_labeled_data(image, bounding_box, func):
         ]
     adjustment = [0.0] * 4
     magnitude = [0.0] * 4
-    if operator[func] < 0:
+    if operator[func] > 0:
         if func == 3:
             adjustment_index = (func - 1) * 2
         else:
@@ -275,6 +278,8 @@ def remove_duplicated_box(annotation_path):
             if new_data['bounding_box'] == bounding_box and new_data['perturbed_bounding_box'] == new_box:
                 flag = True
                 break
+        if data['name'].split('_')[-1] == '-1.jpg':
+            flag = False
         if flag == False:
             new_data_list.append(data)
     with open(annotation_path, 'w') as f:
@@ -291,13 +296,13 @@ if __name__ == '__main__':
 
     image_list = os.listdir('./data/open_images')
     image_list = image_list[:100]
-    make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
+    # make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
 
-    """
+    
     labeled_annotation_path = './data/annotation/best_crop/best_testing_set_fixed.json'
     with open(labeled_annotation_path, 'r') as f:
         data_list = json.load(f)
-    make_annotations_for_labeled(data_list, './data/image')
+    # make_annotations_for_labeled(data_list, './data/image')
     remove_duplicated_box('./data/annotation/labeled_vapnet/labeled_testing_set.json')
     count_images_by_perturbation('./data/annotation/labeled_vapnet/labeled_testing_set.json')
-    """
+    

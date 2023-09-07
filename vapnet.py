@@ -17,9 +17,12 @@ class VAPNet(nn.Module):
         self.last_layer = nn.Sequential(
             nn.Linear(38400, 1024),
             nn.BatchNorm1d(1024),
-            # nn.ReLU(),
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
             nn.Linear(1024, 1024),
             nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Dropout(p=0.5)
         )
 
         self.suggestion_output_layer = nn.Sequential(

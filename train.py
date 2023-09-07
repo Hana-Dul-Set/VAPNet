@@ -8,10 +8,12 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
+import wandb
 
 from config import Config
 from CSNet.image_utils.image_preprocess import get_cropping_image, get_zooming_image, get_shifted_image, get_rotated_image
 from dataset import BCDataset, UnlabledDataset
+from test import test_while_training
 from vapnet import VAPNet
 
 def not_convert_to_tesnor(batch):
@@ -112,7 +114,6 @@ class Trainer(object):
             predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(self.convert_image_list_to_tensor(image_list).to(self.device))
 
             # calculate suggestion loss using BCELoss
-            print(gt_suggestion_list)
             gt_suggestion_list = torch.tensor(gt_suggestion_list).to(self.device)       
             suggestion_loss = self.suggestion_loss_fn(predicted_suggestion, gt_suggestion_list)
             self.suggestion_loss_sum += suggestion_loss.item()
@@ -158,6 +159,22 @@ class Trainer(object):
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()
+
+            if self.train_iter % 20 == 0:
+                ave_suggestion_loss = self.suggestion_loss_sum / self.train_iter
+                ave_adjustment_loss = self.adjustment_loss_sum / self.suggested_case_iter
+                ave_magnitude_loss = self.magnitude_loss_sum / self.suggested_case_iter
+                wandb.log({"suggestion_loss": ave_suggestion_loss, "adjustment_loss": ave_adjustment_loss, "magnitude_loss": ave_magnitude_loss})
+                self.suggestion_loss_sum = 0
+                self.adjustment_loss_sum = 0
+                self.magnitude_loss_sum = 0
+                self.train_iter = 0
+                self.suggested_case_iter = 0
+            if self.train_iter % 1 == 0:
+                checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
+                torch.save(self.model.state_dict(), checkpoint_path)
+                print('Checkpoint Saved...\n')
+                test_while_training()
             
         print('\n======train end======\n')
 
@@ -185,20 +202,16 @@ class Trainer(object):
             checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
             torch.save(self.model.state_dict(), checkpoint_path)
             print('Checkpoint Saved...\n')
+            test_while_training()
 
             epoch_log = 'epoch: %d / %d, lr: %8f' % (self.epoch, self.max_epoch, self.optimizer.param_groups[0]['lr'])
             print(epoch_log)
-            
-            accuracy_log = f'{self.suggestion_loss_sum/ self.train_iter:.5f}/{self.adjustment_loss_sum / self.suggested_case_iter:.5f}/{self.magnitude_loss_sum / self.suggested_case_iter:.5f}'
-            print(accuracy_log)
-            with open('epoch_log.txt', 'a') as f:
-                f.write(accuracy_log + f"/{self.optimizer.param_groups[0]['lr']}\n")
 
-            self.train_iter = 0
-            self.suggested_case_iter = 0
             self.suggestion_loss_sum = 0
             self.adjustment_loss_sum = 0
             self.magnitude_loss_sum = 0
+            self.train_iter = 0
+            self.suggested_case_iter = 0
 
     def get_perturbed_image(self, data):
         image_name = data[0]
@@ -237,7 +250,6 @@ class Trainer(object):
             adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = -operator[3]
         """
-
         return perturbed_image, suggestion_label, adjustment_label, magnitude_label
 
     def get_labeled_data_list(self, bc_data_list):
@@ -278,10 +290,26 @@ class Trainer(object):
 
 if __name__ == '__main__':
     cfg = Config()
-
+    """
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="vapnet",
+        
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": cfg.learning_rate,
+        "architecture": "CNN",
+        "dataset": "BC/UN",
+        "epochs": cfg.max_epoch,
+        "memo": "None"
+        }
+    )
+    """
     model = VAPNet(cfg)
     # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     # model.load_state_dict(torch.load(weight_file))
 
     trainer = Trainer(model, cfg)
     trainer.run()
+
+    wandb.finish()
