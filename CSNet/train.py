@@ -168,7 +168,7 @@ class Trainer(object):
                 rgb_image = Image.new("RGB", image.size)
                 rgb_image.paste(image, (0, 0, image.width, image.height))
                 image = rgb_image
-            np_image = np.array(np_image)
+            np_image = np.array(image)
             np_image = cv2.resize(np_image, self.cfg.image_size)
             tensor.append(self.transformer(np_image))
         tensor = torch.stack(tensor, dim=0)
@@ -266,19 +266,23 @@ class Trainer(object):
             })
 
         # select images randomly to make pairs
-        selected_crops_list = random.sample(crops_list, self.sc_random_crops_count)
+        # selected_crops_list = random.sample(crops_list, self.sc_random_crops_count)
 
         # sort in descending order by score
-        sorted_crops_list = sorted(selected_crops_list, key = lambda x: -x['score'])
+        # sorted_crops_list = sorted(selected_crops_list, key = lambda x: -x['score'])
+        sorted_crops_list = sorted(crops_list, key = lambda x: -x['score'])
 
         image_pairs = []
         for i in range(len(sorted_crops_list)):
             for j in range(i + 1, len(sorted_crops_list)):
-                if sorted_crops_list[i]['score'] == sorted_crops_list[j]['score']:
+                if sorted_crops_list[i]['score'] < sorted_crops_list[j]['score'] + 1.0:
                     continue
                 i_image = sorted_crops_list[i]['image']
                 j_image = sorted_crops_list[j]['image']
                 image_pairs.append((i_image, j_image))
+        
+        if len(image_pairs) > 50:
+            image_pairs = random.sample(image_pairs, 50)
 
         pos_images = []
         neg_images = []
@@ -309,7 +313,7 @@ class Trainer(object):
             best_crop = image
 
         # func_list = [get_rotated_image, get_shifted_image, get_zooming_image, get_cropping_image]
-        func_list = [get_shifted_image, get_zooming_image, get_cropping_image]
+        func_list = [get_shifted_image]
         perturb_func = random.choice(func_list)
 
         allow_zero_pixel = not labeled
@@ -347,7 +351,7 @@ class Trainer(object):
         pos_image = image_pair[0]
         neg_image = image_pair[1]
         # func_list = [shift_borders, zoom_out_borders, rotation_borders]
-        func_list = [shift_borders, zoom_out_borders]
+        func_list = [shift_borders]
         augment_func = random.choice(func_list)
         if labeled:
             augment_pos_image = augment_func(pos_image)

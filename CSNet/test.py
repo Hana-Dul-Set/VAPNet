@@ -88,7 +88,7 @@ class Tester(object):
                 rgb_image = Image.new("RGB", image.size)
                 rgb_image.paste(image, (0, 0, image.width, image.height))
                 image = rgb_image
-            np_image = np.array(np_image)
+            np_image = np.array(image)
             np_image = cv2.resize(np_image, self.cfg.image_size)
             tensor.append(self.transformer(np_image))
         tensor = torch.stack(tensor, dim=0)
@@ -101,11 +101,17 @@ class Tester(object):
 
         pos_tensor = pos_tensor.to(self.device)
         neg_tensor = neg_tensor.to(self.device)
-
+        """
         pos_scores = [self.model(x.unsqueeze(0)) for x in pos_tensor]
         neg_scores = [self.model(x.unsqueeze(0)) for x in neg_tensor]
         pos_scores = torch.cat(pos_scores, dim=0)
         neg_scores = torch.cat(neg_scores, dim=0)
+        """
+
+        tensor_concat = torch.cat((pos_tensor, neg_tensor), dim=0).to(self.device)
+            
+        score_concat = self.model(tensor_concat)
+        pos_scores, neg_scores = torch.split(score_concat, [score_concat.shape[0] // 2, score_concat.shape[0] // 2])
         target = torch.ones((pos_scores.shape[0], 1)).to(self.device)
 
         loss = self.loss_fn(pos_scores, neg_scores, target=target)
@@ -153,13 +159,16 @@ class Tester(object):
             })
 
         # select images randomly to make pairs
-        selected_crops_list = random.sample(crops_list, self.sc_random_crops_count)
+        # selected_crops_list = random.sample(crops_list, self.sc_random_crops_count)
 
         # sort in descending order by score
-        sorted_crops_list = sorted(selected_crops_list, key = lambda x: -x['score'])
+        # sorted_crops_list = sorted(selected_crops_list, key = lambda x: -x['score'])
+        sorted_crops_list = sorted(crops_list, key = lambda x: -x['score'])
 
         image_pairs = []
         for i in range(len(sorted_crops_list)):
+            if len(image_pairs) > 50:
+                continue
             for j in range(i + 1, len(sorted_crops_list)):
                 if sorted_crops_list[i]['score'] == sorted_crops_list[j]['score']:
                     continue

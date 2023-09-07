@@ -13,19 +13,19 @@ class Config:
         self.unlabeled_data = os.path.join(self.data_dir, 'unlabeled')
 
         self.gpu_id = 0
-        self.num_workers = 1
+        self.num_workers = 4
 
         self.pairwise_margin = 0.3
-        self.learning_rate = 1e-5
+        self.learning_rate = 2e-5
         self.weight_decay = 5e-4
 
         self.max_epoch = 100000
 
         self.scored_crops_batch_size = 1
-        self.scored_crops_N = 16
-        self.test_crops_N = 16
-        self.best_crop_K = 16
-        self.unlabeled_P = 16
+        self.scored_crops_N = 12
+        self.test_crops_N = 12
+        self.best_crop_K = 8
+        self.unlabeled_P = 8
 
         self.image_size = (224, 224)
         self.mean = [0.485, 0.456, 0.406]
