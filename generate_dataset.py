@@ -62,8 +62,9 @@ def make_pseudo_label(image_path):
                                  # counter_clokwise_magnitude
                                 ]
     
-    device = 'mps:0'
-    csnet = get_pretrained_CSNet(device)
+    device = 'cuda:0'
+    weight_file = './CSNet/output/weight/0907_10epoch_78_csnet_checkpoint.pth'
+    csnet = get_pretrained_CSNet(device, weight_file)
     pseudo_data_list = []
     
     for index, magnitude_list in enumerate(adjustment_magnitude_list):
@@ -138,9 +139,13 @@ def make_annotations_for_unlabeled(image_list, image_dir_path):
     for image_name in tqdm.tqdm(image_list):
         image_path = os.path.join(image_dir_path, image_name)
         annotation = make_pseudo_label(image_path)
-        annotation_list.append(annotation)
+        # annotation_list.append(annotation)
+        with open('./pseudo_data.csv', 'a') as f:
+            f.writelines(f'{annotation}\n')
+    """
     with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set.json', 'w') as f:
         json.dump(annotation_list, f, indent=2)
+    """
     return
 
 def perturbing_for_labeled_data(image, bounding_box, func):
@@ -295,14 +300,14 @@ if __name__ == '__main__':
     data_list = []
 
     image_list = os.listdir('./data/open_images')
-    image_list = image_list[:100]
-    # make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
-
     
+    make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
+
+    """
     labeled_annotation_path = './data/annotation/best_crop/best_testing_set_fixed.json'
     with open(labeled_annotation_path, 'r') as f:
         data_list = json.load(f)
-    # make_annotations_for_labeled(data_list, './data/image')
+    make_annotations_for_labeled(data_list, './data/image')
     remove_duplicated_box('./data/annotation/labeled_vapnet/labeled_testing_set.json')
     count_images_by_perturbation('./data/annotation/labeled_vapnet/labeled_testing_set.json')
-    
+    """
