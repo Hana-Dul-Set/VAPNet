@@ -60,11 +60,10 @@ class UnlabledDataset(Dataset):
     def __getitem__(self, index):
         data = self.data_list[index]
         image_name = data['name']
-        image = Image.open(os.path.join(self.image_dir, image_name))
         suggestion_label = data['suggestion']
         adjustment_label = data['adjustment']
         magnitude_label = data['magnitude']
-        return image, suggestion_label, adjustment_label, magnitude_label
+        return image_name, suggestion_label, adjustment_label, magnitude_label
 
     def build_data_list(self):
         data_list = []

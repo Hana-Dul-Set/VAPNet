@@ -94,7 +94,7 @@ class Trainer(object):
             l_magnitude_label_list += b_magnitude_label_list
 
             # get unlabeled data label
-            ul_image_list = [x[0] for x in unlabeled_data_list]
+            ul_image_list = [Image.open(os.path.join('./data/open_images', x[0])) for x in unlabeled_data_list]
             ul_suggestion_label_list = [x[1] for x in unlabeled_data_list]
             ul_adjustment_label_list = [x[2] for x in unlabeled_data_list]
             ul_magnitude_label_list = [x[3] for x in unlabeled_data_list]
