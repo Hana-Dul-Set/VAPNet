@@ -13,6 +13,10 @@ from CSNet.image_utils.image_preprocess import get_shifted_image, get_zooming_im
 from CSNet.csnet import get_pretrained_CSNet
 from config import Config
 
+device = 'cuda:0'
+weight_file = './CSNet/output/weight/0907_10epoch_78_csnet_checkpoint.pth'
+csnet = get_pretrained_CSNet(device, weight_file)
+
 def get_csnet_score(image_list, csnet, device):
     image_size = (224, 224)
     mean = [0.485, 0.456, 0.406]
@@ -29,7 +33,7 @@ def get_csnet_score(image_list, csnet, device):
             rgb_image.paste(image, (0, 0, image.width, image.height))
             image = rgb_image
         np_image = np.array(image)
-        np_image = cv2.resize(np_image, (224, 224))
+        np_image = cv2.resize(np_image, image_size)
         tensor.append(transformer(np_image))
     tensor = torch.stack(tensor, dim=0)
     tensor = tensor.to(device)
@@ -62,10 +66,10 @@ def make_pseudo_label(image_path):
                                  # counter_clokwise_magnitude
                                 ]
     
-    device = 'cuda:0'
-    weight_file = './CSNet/output/weight/0907_10epoch_78_csnet_checkpoint.pth'
-    csnet = get_pretrained_CSNet(device, weight_file)
     pseudo_data_list = []
+    adjustment_label_list = []
+    magnitude_label_list = []
+    perturbed_image_list = []
     
     for index, magnitude_list in enumerate(adjustment_magnitude_list):
         adjustment_label = [0.0] * len(adjustment_magnitude_list)
@@ -103,8 +107,17 @@ def make_pseudo_label(image_path):
                 magnitude_label[index] = mag
             
             # get csnet score of each perturbed image
-            score = get_csnet_score([pseudo_image], csnet, device)[0].item()
-            pseudo_data_list.append((score, adjustment_label, magnitude_label))
+            perturbed_image_list.append(pseudo_image)
+            adjustment_label_list.append(adjustment_label)
+            magnitude_label_list.append(magnitude_label)
+
+    score_list = get_csnet_score(perturbed_image_list, csnet, device).tolist()
+    pseudo_data_list = [(x[0], y, z) for x, y, z in zip(score_list, adjustment_label_list, magnitude_label_list)]
+    """
+    for i in range(len(score_list)):
+        pseudo_data_list.append((score_list[index][0], adjustment_label_list[index], magnitude_label_list[index]))
+    """
+    # pseudo_data_list.append((score, adjustment_label, magnitude_label))
 
     # sort in desceding order by csnet score
     pseudo_data_list.sort(reverse=True)
