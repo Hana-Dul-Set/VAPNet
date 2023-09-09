@@ -67,7 +67,7 @@ class Trainer(object):
         ])
 
         self.train_iter = 0
-        self.suggesetd_iter = 0
+        self.suggested_iter = 0
         self.suggested_case_iter = 0
         self.suggestion_loss_sum = 0
         self.adjustment_loss_sum = 0
@@ -167,14 +167,14 @@ class Trainer(object):
             self.optimizer.step()
 
             if self.train_iter % 20 == 0:
-                ave_suggestion_loss = self.suggestion_loss_sum / self.suggesetd_iter
+                ave_suggestion_loss = self.suggestion_loss_sum / self.suggested_iter
                 ave_adjustment_loss = self.adjustment_loss_sum / self.suggested_case_iter
                 ave_magnitude_loss = self.magnitude_loss_sum / self.suggested_case_iter
                 wandb.log({"suggestion_loss": ave_suggestion_loss, "adjustment_loss": ave_adjustment_loss, "magnitude_loss": ave_magnitude_loss})
                 self.suggestion_loss_sum = 0
                 self.adjustment_loss_sum = 0
                 self.magnitude_loss_sum = 0
-                self.suggesetd_iter = 0
+                self.suggested_iter = 0
                 self.suggested_case_iter = 0
             if self.train_iter % 900 == 0:
                 checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
@@ -217,7 +217,7 @@ class Trainer(object):
             self.adjustment_loss_sum = 0
             self.magnitude_loss_sum = 0
             self.train_iter = 0
-            self.suggesetd_iter = 0
+            self.suggested_iter = 0
             self.suggested_case_iter = 0
 
     def get_perturbed_image(self, data):
