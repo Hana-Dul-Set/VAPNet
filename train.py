@@ -122,7 +122,7 @@ class Trainer(object):
             gt_suggestion_list = torch.tensor(gt_suggestion_list).to(self.device)       
             suggestion_loss = self.suggestion_loss_fn(predicted_suggestion, gt_suggestion_list)
             self.suggestion_loss_sum += suggestion_loss.item()
-            self.suggested_case_iter += 1
+            self.suggested_iter += 1
 
             # filter no suggestion cases
             suggested_index = [i for i in range(len(gt_suggestion_list)) if gt_suggestion_list[i] == 1]
