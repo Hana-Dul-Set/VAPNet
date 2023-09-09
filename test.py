@@ -32,7 +32,7 @@ class Tester(object):
 
         self.data_loader = build_dataloader(self.cfg)
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
         # self.device = torch.device('cpu')
 
         self.batch_size = self.cfg.batch_size
@@ -109,13 +109,13 @@ class Tester(object):
                 for index, gt_perturbed_box in enumerate(gt_perturbed_bounding_box):
                     # no-suggestion case
                     if index not in suggested_index:
-                        print("no-suggestion", gt_bounding_box[index], gt_perturbed_box)
+                        # print("no-suggestion", gt_bounding_box[index], gt_perturbed_box)
                         predicted_bounding_box.append(gt_perturbed_box)
                         continue
                 
                     adjustment = np.where(one_hot_predicted_adjustment[index] == 1.0)[0][0]
                     magnitude = predicted_magnitude[index][adjustment]
-                    print(adjustment, magnitude, gt_perturbed_box)
+                    # print(adjustment, magnitude, gt_perturbed_box)
                     #  horizontal shift
                     if adjustment == 0 or adjustment == 1:
                         predicted_box = get_shifted_box(image_size=image_size[index], \
@@ -163,7 +163,7 @@ class Tester(object):
 
         loss_log = f'{ave_suggestion_loss}/{ave_adjustment_loss}/{ave_magnitude_loss}'
         accuracy_log = f'{ave_auc_score:.5f}/{ave_tpr_score:.5f}/{ave_f1_score}/{ave_iou_score:.5f}'
-        """
+        
         wandb.log({"test_suggestion_loss": ave_suggestion_loss, "test_adjustment_loss": ave_adjustment_loss, "test_magnitude_loss": ave_magnitude_loss})
         wandb.log({
             "auc_score": ave_auc_score,
@@ -174,7 +174,7 @@ class Tester(object):
             "f1-score(down)": ave_f1_score[3],
             "iou": ave_iou_score
         })
-        """
+        
         print(loss_log)
         print(accuracy_log)
 
@@ -185,7 +185,6 @@ class Tester(object):
             return np.max(idices)
 
         gt_suggestion = np.array(gt_suggestion).flatten()
-        print(gt_suggestion)
         predicted_suggestion = predicted_suggestion.flatten()
         fpr, tpr, cut = roc_curve(gt_suggestion, predicted_suggestion)
         auc_score = auc(fpr, tpr)
@@ -193,13 +192,14 @@ class Tester(object):
 
         tpr_score = tpr[idx]
         threshold = cut[idx]
+        """
         print('gt suggestion:', gt_suggestion)
         print('predicted_suggestion:', predicted_suggestion)
         print('FPR:', fpr)
         print('TPR:', tpr)
         print('CUT:', cut)
         print(f'idx: {idx}/threshold: {threshold}')
-
+        """
         return auc_score, tpr_score, threshold
     
     def convert_array_to_one_hot_encoded(self, array):
@@ -218,36 +218,35 @@ class Tester(object):
         if len(gt_adjustment) == 0:
             return [0.0] * self.adjustment_count
         
-        print('gt adjustment:', gt_adjustment)
-        print('predicted adjustment:', predicted_adjustment)
+        # print('gt adjustment:', gt_adjustment)
+        # print('predicted adjustment:', predicted_adjustment)
         one_hot_encoded_adjustment = np.apply_along_axis(self.convert_array_to_one_hot_encoded, axis=1, arr=predicted_adjustment)
-        print('one_hot_predicted adjustment:', one_hot_encoded_adjustment)
+        # print('one_hot_predicted adjustment:', one_hot_encoded_adjustment)
         gt_label_list = np.apply_along_axis(convert_one_hot_encoded_to_index, axis=1, arr=gt_adjustment)
         predicted_label_list = np.apply_along_axis(convert_one_hot_encoded_to_index, axis=1, arr=one_hot_encoded_adjustment)
-        print('gt label:', gt_label_list)
-        print('predicted label:', predicted_label_list)
+        # print('gt label:', gt_label_list)
+        # print('predicted label:', predicted_label_list)
         labels = [i for i in range(0, self.adjustment_count + 1)]
         f1_score = f1(gt_label_list, predicted_label_list, labels=labels, average=None, zero_division=0.0)
 
         # remove no-suggestion case
         f1_score = f1_score[:-1]
-        print('f1 score:', f1_score)
+        # print('f1 score:', f1_score)
         return f1_score
         
     def calculate_ave_iou_score(self, boudning_box_list, perturbed_box_list):
         # box format: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] (counter-clockwise order)
         def calculate_iou_score(box1, box2):
-            print("gt_box:", box1, "/predicted_box:", box2)
+            # print("gt_box:", box1, "/predicted_box:", box2)
             poly1 = Polygon(box1)
             poly2 = Polygon(box2)
-            
+            if poly1.intersects(poly2) == False:
+                return 0
             intersection_area = poly1.intersection(poly2).area
             union_area = poly1.union(poly2).area
-            print(intersection_area, union_area)
+            # print(intersection_area, union_area)
 
             iou = intersection_area / union_area if union_area > 0 else 0.0
-            print(iou)
-            input()
             return iou
         
         iou_sum = 0

@@ -16,6 +16,8 @@ from dataset import BCDataset, UnlabledDataset
 from test import test_while_training
 from vapnet import VAPNet
 
+Image.MAX_IMAGE_PIXELS = None
+
 def not_convert_to_tesnor(batch):
         return batch
 
@@ -44,7 +46,7 @@ class Trainer(object):
         self.adjustment_count = self.cfg.adjustment_count
 
         self.device = torch.device('cuda:{}'.format(self.cfg.gpu_id))
-        self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+        # self.device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
         self.batch_size = self.cfg.batch_size
 
         self.bc_loader, self.unlabeled_loader = build_dataloader(self.cfg)
@@ -65,6 +67,7 @@ class Trainer(object):
         ])
 
         self.train_iter = 0
+        self.suggesetd_iter = 0
         self.suggested_case_iter = 0
         self.suggestion_loss_sum = 0
         self.adjustment_loss_sum = 0
@@ -85,13 +88,15 @@ class Trainer(object):
             # get randomly perturbed image and label for suggestion case
             l_image_list, l_suggestion_label_list, l_adjustment_label_list, l_magnitude_label_list = self.get_labeled_data_list(bc_data_list)
             # get best crop image and label for no-suggestion case
-            b_image_list, b_suggestion_label_list, b_adjustment_label_list, b_magnitude_label_list = self.get_best_crop_labeled_data_list(bc_data_list)
+            # b_image_list, b_suggestion_label_list, b_adjustment_label_list, b_magnitude_label_list = self.get_best_crop_labeled_data_list(bc_data_list)
 
             # combine
+            """
             l_image_list += b_image_list
             l_suggestion_label_list += b_suggestion_label_list
             l_adjustment_label_list += b_adjustment_label_list
             l_magnitude_label_list += b_magnitude_label_list
+            """
 
             # get unlabeled data label
             ul_image_list = [Image.open(os.path.join('./data/open_images', x[0])).convert('RGB') for x in unlabeled_data_list]
@@ -117,6 +122,7 @@ class Trainer(object):
             gt_suggestion_list = torch.tensor(gt_suggestion_list).to(self.device)       
             suggestion_loss = self.suggestion_loss_fn(predicted_suggestion, gt_suggestion_list)
             self.suggestion_loss_sum += suggestion_loss.item()
+            self.suggested_case_iter += 1
 
             # filter no suggestion cases
             suggested_index = [i for i in range(len(gt_suggestion_list)) if gt_suggestion_list[i] == 1]
@@ -161,16 +167,16 @@ class Trainer(object):
             self.optimizer.step()
 
             if self.train_iter % 20 == 0:
-                ave_suggestion_loss = self.suggestion_loss_sum / self.train_iter
+                ave_suggestion_loss = self.suggestion_loss_sum / self.suggesetd_iter
                 ave_adjustment_loss = self.adjustment_loss_sum / self.suggested_case_iter
                 ave_magnitude_loss = self.magnitude_loss_sum / self.suggested_case_iter
                 wandb.log({"suggestion_loss": ave_suggestion_loss, "adjustment_loss": ave_adjustment_loss, "magnitude_loss": ave_magnitude_loss})
                 self.suggestion_loss_sum = 0
                 self.adjustment_loss_sum = 0
                 self.magnitude_loss_sum = 0
-                self.train_iter = 0
+                self.suggesetd_iter = 0
                 self.suggested_case_iter = 0
-            if self.train_iter % 1 == 0:
+            if self.train_iter % 900 == 0:
                 checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
                 torch.save(self.model.state_dict(), checkpoint_path)
                 print('Checkpoint Saved...\n')
@@ -211,6 +217,7 @@ class Trainer(object):
             self.adjustment_loss_sum = 0
             self.magnitude_loss_sum = 0
             self.train_iter = 0
+            self.suggesetd_iter = 0
             self.suggested_case_iter = 0
 
     def get_perturbed_image(self, data):
@@ -218,7 +225,9 @@ class Trainer(object):
         image = Image.open(os.path.join(self.image_dir, image_name))
         best_crop_bounding_box = data[1]
 
-        func_choice = random.randint(0, 1)
+        func_choice = random.randint(-1, 1)
+        if func_choice == -1:
+            return image.crop(best_crop_bounding_box), [0.0], [0.0] * self.adjustment_count, [0.0] * self.adjustment_count
         if func_choice == 0:
             output = get_shifted_image(image, best_crop_bounding_box, allow_zero_pixel=False, option='vapnet', direction=0)
         elif func_choice == 1:
@@ -290,7 +299,7 @@ class Trainer(object):
 
 if __name__ == '__main__':
     cfg = Config()
-    """
+    
     wandb.init(
         # set the wandb project where this run will be logged
         project="vapnet",
@@ -304,7 +313,7 @@ if __name__ == '__main__':
         "memo": "None"
         }
     )
-    """
+    
     model = VAPNet(cfg)
     # weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     # model.load_state_dict(torch.load(weight_file))

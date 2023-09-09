@@ -22,7 +22,7 @@ class Config:
         self.learning_rate = 2e-5
         self.weight_decay = 5e-4
 
-        self.max_epoch = 100
+        self.max_epoch = 10000
 
         self.image_size = (224, 224)
         self.mean = [0.485, 0.456, 0.406]

@@ -13,6 +13,8 @@ from CSNet.image_utils.image_preprocess import get_shifted_image, get_zooming_im
 from CSNet.csnet import get_pretrained_CSNet
 from config import Config
 
+Image.MAX_IMAGE_PIXELS = None
+
 device = 'cuda:0'
 weight_file = './CSNet/output/weight/0907_10epoch_78_csnet_checkpoint.pth'
 csnet = get_pretrained_CSNet(device, weight_file)
@@ -42,7 +44,7 @@ def get_csnet_score(image_list, csnet, device):
     
 def make_pseudo_label(image_path):
     
-    image = Image.open(image_path)
+    image = Image.open(image_path).convert('RGB')
     image_name = image_path.split('/')[-1]
 
     left_shift_magnitude = [-x * 0.05 for x in range(1, 10, 1)]
@@ -76,6 +78,7 @@ def make_pseudo_label(image_path):
         adjustment_label[index] = 1
 
         for mag in magnitude_list:
+            mag = round(mag, 2)
             magnitude_label = [0.0] * len(adjustment_magnitude_list)
             pseudo_image = None
 
@@ -112,7 +115,7 @@ def make_pseudo_label(image_path):
             magnitude_label_list.append(magnitude_label)
 
     score_list = get_csnet_score(perturbed_image_list, csnet, device).tolist()
-    pseudo_data_list = [(x[0], y, z) for x, y, z in zip(score_list, adjustment_label_list, magnitude_label_list)]
+    pseudo_data_list = [(x[0], y, z, img) for x, y, z, img in zip(score_list, adjustment_label_list, magnitude_label_list, perturbed_image_list)]
     """
     for i in range(len(score_list)):
         pseudo_data_list.append((score_list[index][0], adjustment_label_list[index], magnitude_label_list[index]))
@@ -132,7 +135,7 @@ def make_pseudo_label(image_path):
     print("original_image_score:", original_image_score)
     """
 
-    if original_image_score + 0.2 < best_adjustment_score:
+    if original_image_score + 0.15 < best_adjustment_score:
         return {
             'name': image_name,
             'suggestion': [1.0],
@@ -148,17 +151,43 @@ def make_pseudo_label(image_path):
         }
     
 def make_annotations_for_unlabeled(image_list, image_dir_path):
+    pertubed_cnt = 0
+    no_perturbed_cnt = 0
+    adjustment_cnt = [0, 0, 0, 0]
     annotation_list = []
+    # image_list = image_list[:10]
     for image_name in tqdm.tqdm(image_list):
         image_path = os.path.join(image_dir_path, image_name)
-        annotation = make_pseudo_label(image_path)
-        # annotation_list.append(annotation)
-        with open('./pseudo_data.csv', 'a') as f:
-            f.writelines(f'{annotation}\n')
+        try:
+            annotation = make_pseudo_label(image_path)
+            if annotation['suggestion'] == [1.0]:
+                pertubed_cnt += 1
+                adjustment_cnt[annotation['adjustment'].index(1.0)] += 1
+            else:
+                no_perturbed_cnt += 1
+            # annotation_list.append(annotation)
+            with open('./pseudo_data.csv', 'a') as f:
+                f.writelines(f'{annotation}\n')
+        except Exception as e:
+            print(image_name)
+            print(e)
+    print(f'perturbed_cnt:{pertubed_cnt}')
+    print(adjustment_cnt)
+    print(f'no-perturbed_cnt:{no_perturbed_cnt}')
     """
     with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set.json', 'w') as f:
         json.dump(annotation_list, f, indent=2)
     """
+    return
+
+def csv_to_json_for_unlabeld(csv_path, json_path):
+    with open(csv_path, 'r') as f:
+        csv_list = list(f.readlines())
+    json_list = []
+    for line in csv_list:
+        json_list.append(eval(line))
+    with open(json_path, 'w') as f:
+        json.dump(json_list, f, indent=2)
     return
 
 def perturbing_for_labeled_data(image, bounding_box, func):
@@ -314,8 +343,8 @@ if __name__ == '__main__':
 
     image_list = os.listdir('./data/open_images')
     
-    make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
-
+    # make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
+    csv_to_json_for_unlabeld('./pseudo_data.csv', './data/annotation/unlabeled_vapnet/unlabeled_training_set.json')
     """
     labeled_annotation_path = './data/annotation/best_crop/best_testing_set_fixed.json'
     with open(labeled_annotation_path, 'r') as f:
