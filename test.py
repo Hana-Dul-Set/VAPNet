@@ -57,6 +57,18 @@ class Tester(object):
 
     def run(self):
         print('\n======test start======\n')
+
+        total_gt_suggestion_label = np.array([])
+        total_gt_adjustment_label = np.array([])
+        total_gt_magnitude_label = np.array([])
+        total_predicted_suggestion = np.array([])
+        total_predicted_adjustment = np.array([])
+        total_predicted_magnitude = np.array([])
+
+        total_gt_perturbed_bounding_box = []
+        total_gt_bounding_box = []
+        total_image_size = []
+
         self.model.eval().to(self.device)
         with torch.no_grad():
             for index, data in tqdm(enumerate(self.data_loader), total=self.data_length):
@@ -65,7 +77,7 @@ class Tester(object):
                 image_size = data[1].tolist()
                 gt_bounding_box = data[2].tolist()
                 gt_perturbed_bounding_box = data[3].tolist()
-                gt_suggesiton_label = data[4].to(self.device)
+                gt_suggestion_label = data[4].to(self.device)
                 gt_adjustment_label = data[5].to(self.device)
                 gt_magnitude_label = data[6].to(self.device)
 
@@ -73,110 +85,123 @@ class Tester(object):
                 predicted_suggestion, predicted_adjustment, predicted_magnitude = self.model(image.to(self.device))
 
                 # caculate loss
-                self.suggestion_loss_sum += self.suggestion_loss_fn(predicted_suggestion, gt_suggesiton_label)
+                self.suggestion_loss_sum += self.suggestion_loss_fn(predicted_suggestion, gt_suggestion_label)
                 self.adjustment_loss_sum += self.adjustment_loss_fn(predicted_adjustment, gt_adjustment_label)
                 self.magnitude_loss_sum += self.magnitude_loss_fn(predicted_magnitude, gt_magnitude_label)
 
                 # convert tensor to numpy for using sklearn metrics
-                gt_suggesiton_label = gt_suggesiton_label.to('cpu').numpy()
+                gt_suggestion_label = gt_suggestion_label.to('cpu').numpy()
                 gt_adjustment_label = gt_adjustment_label.to('cpu').numpy()
                 gt_magnitude_label = gt_magnitude_label.to('cpu').numpy()
                 predicted_suggestion = predicted_suggestion.to('cpu').numpy()
                 predicted_adjustment = predicted_adjustment.to('cpu').numpy()
                 predicted_magnitude = predicted_magnitude.to('cpu').numpy()
 
-                # calculate auc, tpr, and threshold for suggestion
-                auc_score, tpr_score, threshold = self.calculate_suggestion_accuracy(gt_suggesiton_label, predicted_suggestion)
+                total_gt_suggestion_label = self.add_to_total(gt_suggestion_label, total_gt_suggestion_label)
+                total_gt_adjustment_label = self.add_to_total(gt_adjustment_label, total_gt_adjustment_label)
+                total_gt_magnitude_label = self.add_to_total(gt_magnitude_label, total_gt_magnitude_label)
+                total_predicted_suggestion = self.add_to_total(predicted_suggestion, total_predicted_suggestion)
+                total_predicted_adjustment = self.add_to_total(predicted_adjustment, total_predicted_adjustment)
+                total_predicted_magnitude = self.add_to_total(predicted_magnitude, total_predicted_magnitude)
                 
-                # remove no-suggested elements
-                suggested_index = np.where(predicted_suggestion >= threshold)[0]
+                total_gt_bounding_box += gt_bounding_box
+                total_gt_perturbed_bounding_box += gt_perturbed_bounding_box
+                total_image_size += image_size
 
-                filtered_gt_adjustment_label = gt_adjustment_label[suggested_index]
-                filtered_predicted_adjustment = predicted_adjustment[suggested_index]
 
-                # calculate f1 score for each adjustment
-                f1_score = list(self.calculate_f1_score(filtered_gt_adjustment_label, filtered_predicted_adjustment))
+        # calculate auc, tpr, and threshold for suggestion
+        auc_score, tpr_score, threshold = self.calculate_suggestion_accuracy(total_gt_suggestion_label, total_predicted_suggestion)
+        
+        # remove no-suggested elements
+        suggested_index = np.where(total_predicted_suggestion >= threshold)[0]
 
-                # get one-hot encoded predicted adjustment
-                one_hot_predicted_adjustment = np.apply_along_axis(self.convert_array_to_one_hot_encoded, axis=1, arr=predicted_adjustment)
+        filtered_gt_adjustment_label = total_gt_adjustment_label[suggested_index]
+        filtered_predicted_adjustment = total_predicted_adjustment[suggested_index]
 
-                # conver index nparray of no-suggestd elements to python list
-                suggested_index = list(suggested_index)
-                
-                # get predicted bounding box
-                predicted_bounding_box = []
-                
-                for index, gt_perturbed_box in enumerate(gt_perturbed_bounding_box):
-                    # no-suggestion case
-                    if index not in suggested_index:
-                        # print("no-suggestion", gt_bounding_box[index], gt_perturbed_box)
-                        predicted_bounding_box.append(gt_perturbed_box)
-                        continue
-                
-                    adjustment = np.where(one_hot_predicted_adjustment[index] == 1.0)[0][0]
-                    magnitude = predicted_magnitude[index][adjustment]
-                    # print(adjustment, magnitude, gt_perturbed_box)
-                    #  horizontal shift
-                    if adjustment == 0 or adjustment == 1:
-                        predicted_box = get_shifted_box(image_size=image_size[index], \
-                                                        bounding_box_corners=gt_perturbed_box, \
-                                                        mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
-                                                        direction=0)
-                    # vertical shift
-                    elif adjustment == 2 or adjustment == 3:
-                        predicted_box = get_shifted_box(image_size=image_size[index], \
-                                                        bounding_box_corners=gt_perturbed_box, \
-                                                        mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
-                                                        direction=1)
-                    # rotation
-                    elif adjustment == 4 or adjustment == 5:
-                        if gt_adjustment_label[index][4] == 1:
-                            predicted_box = get_rotated_box(bounding_box=gt_bounding_box[index], \
-                                                            input_radian=(1 if adjustment % 2 == 1 else -1) * (magnitude - gt_magnitude_label[index][4]))
-                        elif gt_adjustment_label[index][5] == 1:
-                            predicted_box = get_rotated_box(bounding_box=gt_bounding_box[index], \
-                                                            input_radian=(1 if adjustment % 2 == 1 else -1) * (magnitude - gt_magnitude_label[index][5]))
-                        else:
-                            predicted_box = get_rotated_box(bounding_box=gt_perturbed_box, \
-                                                            input_radian=(1 if adjustment % 2 == 1 else -1) * magnitude)
-                    predicted_bounding_box.append(predicted_box)
+        # calculate f1 score for each adjustment
+        f1_score = list(self.calculate_f1_score(filtered_gt_adjustment_label, filtered_predicted_adjustment))
 
-                # calculate average iou score for each bounding box pairs
-                iou_score = self.calculate_ave_iou_score(gt_bounding_box, predicted_bounding_box)
-                
-                # add each score
-                self.auc_score_sum += auc_score
-                self.tpr_score_sum += tpr_score
-                self.f1_score_sum = [x + y for x, y in zip(f1_score, self.f1_score_sum)]
-                self.iou_score_sum += iou_score
+        # get one-hot encoded predicted adjustment
+        one_hot_predicted_adjustment = np.apply_along_axis(self.convert_array_to_one_hot_encoded, axis=1, arr=total_predicted_adjustment)
+
+        # conver index nparray of no-suggestd elements to python list
+        suggested_index = list(suggested_index)
+        
+        # get predicted bounding box
+        predicted_bounding_box = []
+        
+        for index, gt_perturbed_box in enumerate(total_gt_perturbed_bounding_box):
+            # no-suggestion case
+            if index not in suggested_index:
+                # print("no-suggestion", gt_bounding_box[index], gt_perturbed_box)
+                predicted_bounding_box.append(gt_perturbed_box)
+                continue
+        
+            adjustment = np.where(one_hot_predicted_adjustment[index] == 1.0)[0][0]
+            magnitude = total_predicted_magnitude[index][adjustment]
+            # print(adjustment, magnitude, gt_perturbed_box)
+            #  horizontal shift
+            if adjustment == 0 or adjustment == 1:
+                predicted_box = get_shifted_box(image_size=total_image_size[index], \
+                                                bounding_box_corners=gt_perturbed_box, \
+                                                mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
+                                                direction=0)
+            # vertical shift
+            elif adjustment == 2 or adjustment == 3:
+                predicted_box = get_shifted_box(image_size=total_image_size[index], \
+                                                bounding_box_corners=gt_perturbed_box, \
+                                                mag=(1 if adjustment % 2 == 1 else -1) * magnitude,\
+                                                direction=1)
+            """
+            # rotation
+            elif adjustment == 4 or adjustment == 5:
+                if gt_adjustment_label[index][4] == 1:
+                    predicted_box = get_rotated_box(bounding_box=total_gt_bounding_box[index], \
+                                                    input_radian=(1 if adjustment % 2 == 1 else -1) * (magnitude - gt_magnitude_label[index][4]))
+                elif gt_adjustment_label[index][5] == 1:
+                    predicted_box = get_rotated_box(bounding_box=total_gt_bounding_box[index], \
+                                                    input_radian=(1 if adjustment % 2 == 1 else -1) * (magnitude - gt_magnitude_label[index][5]))
+                else:
+                    predicted_box = get_rotated_box(bounding_box=gt_perturbed_box, \
+                                                    input_radian=(1 if adjustment % 2 == 1 else -1) * magnitude)
+            """
+            predicted_bounding_box.append(predicted_box)
+            
+
+        # calculate average iou score for each bounding box pairs
+        iou_score = self.calculate_ave_iou_score(total_gt_bounding_box, predicted_bounding_box)
 
         print('\n======test end======\n')
 
         # calculate ave score
         ave_suggestion_loss = self.suggestion_loss_sum / self.data_length
         ave_adjustment_loss = self.adjustment_loss_sum / self.data_length
-        ave_magnitude_loss = self.magnitude_loss_sum / self.data_length
-        ave_auc_score = self.auc_score_sum / self.data_length
-        ave_tpr_score = self.tpr_score_sum / self.data_length
-        ave_f1_score = [x / self.data_length for x in self.f1_score_sum]
-        ave_iou_score = self.iou_score_sum / self.data_length
+        ave_magnitude_loss = self.magnitude_loss_sum  / self.data_length
 
+        print(f'threshold:{threshold}')
         loss_log = f'{ave_suggestion_loss}/{ave_adjustment_loss}/{ave_magnitude_loss}'
-        accuracy_log = f'{ave_auc_score:.5f}/{ave_tpr_score:.5f}/{ave_f1_score}/{ave_iou_score:.5f}'
+        accuracy_log = f'{auc_score:.5f}/{tpr_score:.5f}/{f1_score}/{iou_score:.5f}'
+    
+        print(loss_log)
+        print(accuracy_log)
         
         wandb.log({"test_suggestion_loss": ave_suggestion_loss, "test_adjustment_loss": ave_adjustment_loss, "test_magnitude_loss": ave_magnitude_loss})
         wandb.log({
-            "auc_score": ave_auc_score,
-            "tpr_score": ave_tpr_score,
-            "f1-score(left)": ave_f1_score[0],
-            "f1-score(right)": ave_f1_score[1],
-            "f1-score(up)": ave_f1_score[2],
-            "f1-score(down)": ave_f1_score[3],
-            "iou": ave_iou_score
+            "auc_score": auc_score,
+            "tpr_score": tpr_score,
+            "f1-score(left)": f1_score[0],
+            "f1-score(right)": f1_score[1],
+            "f1-score(up)": f1_score[2],
+            "f1-score(down)": f1_score[3],
+            "iou": iou_score
         })
-        
-        print(loss_log)
-        print(accuracy_log)
+    
+    def add_to_total(self, target_np_array, total_np_array):
+        if total_np_array.shape == (0,):
+            total_np_array = target_np_array
+        else:
+            total_np_array = np.concatenate((total_np_array, target_np_array))
+        return total_np_array
 
 
     def calculate_suggestion_accuracy(self, gt_suggestion, predicted_suggestion):
@@ -270,8 +295,8 @@ if __name__ == '__main__':
     cfg = Config()
 
     model = VAPNet(cfg)
-    weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
-    model.load_state_dict(torch.load(weight_file))
+    weight_file = os.path.join(cfg.weight_dir, '0911_98epoch_vapnet_checkpoint.pth')
+    model.load_state_dict(torch.load(weight_file, map_location='cpu'))
 
     tester = Tester(model, cfg)
     tester.run()
