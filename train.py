@@ -176,7 +176,7 @@ class Trainer(object):
                 self.magnitude_loss_sum = 0
                 self.suggested_iter = 0
                 self.suggested_case_iter = 0
-            if self.train_iter % 900 == 0:
+            if self.train_iter % 5000 == 0:
                 checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
                 torch.save(self.model.state_dict(), checkpoint_path)
                 print('Checkpoint Saved...\n')
