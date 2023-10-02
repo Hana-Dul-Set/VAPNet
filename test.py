@@ -55,7 +55,7 @@ class Tester(object):
         self.f1_score_sum = [0] * (self.adjustment_count)
         self.iou_score_sum = 0
 
-    def run(self):
+    def run(self, custom_threshold=0):
         print('\n======test start======\n')
 
         total_gt_suggestion_label = np.array([])
@@ -111,7 +111,8 @@ class Tester(object):
 
         # calculate auc, tpr, and threshold for suggestion
         auc_score, tpr_score, threshold = self.calculate_suggestion_accuracy(total_gt_suggestion_label, total_predicted_suggestion)
-        
+        if custom_threshold != 0:
+            threshold = custom_threshold
         # remove no-suggested elements
         suggested_index = np.where(total_predicted_suggestion >= threshold)[0]
 
@@ -189,11 +190,11 @@ class Tester(object):
         wandb.log({
             "auc_score": auc_score,
             "tpr_score": tpr_score,
-            "f1-score(left)": f1_score[0],
-            "f1-score(right)": f1_score[1],
-            "f1-score(up)": f1_score[2],
-            "f1-score(down)": f1_score[3],
-            "iou": iou_score
+            f"f1-score(left)({custom_threshold})": f1_score[0],
+            f"f1-score(right)({custom_threshold})": f1_score[1],
+            f"f1-score(up)({custom_threshold})": f1_score[2],
+            f"f1-score(down)({custom_threshold})": f1_score[3],
+            f"iou({custom_threshold})": iou_score
         })
     
     def add_to_total(self, target_np_array, total_np_array):
@@ -281,7 +282,7 @@ class Tester(object):
         ave_iou = iou_sum / len(boudning_box_list)
         return ave_iou
 
-def test_while_training():
+def test_while_training(threshold=0):
     cfg = Config()
 
     model = VAPNet(cfg)
@@ -289,7 +290,7 @@ def test_while_training():
     model.load_state_dict(torch.load(weight_file))
 
     tester = Tester(model, cfg)
-    tester.run()
+    tester.run(custom_threshold=threshold)
 
 if __name__ == '__main__':
     cfg = Config()

@@ -176,11 +176,16 @@ class Trainer(object):
                 self.magnitude_loss_sum = 0
                 self.suggested_iter = 0
                 self.suggested_case_iter = 0
+            """
             if self.train_iter % 5000 == 0:
                 checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
                 torch.save(self.model.state_dict(), checkpoint_path)
                 print('Checkpoint Saved...\n')
+                
+                for i in range(0.5, 1.0, 0.1):
+                    test_while_training(threshold=i)
                 test_while_training()
+            """
             
         print('\n======train end======\n')
 
@@ -208,6 +213,9 @@ class Trainer(object):
             checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
             torch.save(self.model.state_dict(), checkpoint_path)
             print('Checkpoint Saved...\n')
+            
+            for i in range(0.5, 1.0, 0.1):
+                test_while_training(threshold=i)
             test_while_training()
 
             epoch_log = 'epoch: %d / %d, lr: %8f' % (self.epoch, self.max_epoch, self.optimizer.param_groups[0]['lr'])
