@@ -170,7 +170,7 @@ class Trainer(object):
                 ave_suggestion_loss = self.suggestion_loss_sum / self.suggested_iter
                 ave_adjustment_loss = self.adjustment_loss_sum / self.suggested_case_iter
                 ave_magnitude_loss = self.magnitude_loss_sum / self.suggested_case_iter
-                wandb.log({"suggestion_loss": ave_suggestion_loss, "adjustment_loss": ave_adjustment_loss, "magnitude_loss": ave_magnitude_loss})
+                wandb.log({"Train Loss/suggestion_loss": ave_suggestion_loss, "Train Loss/adjustment_loss": ave_adjustment_loss, "Train Loss/magnitude_loss": ave_magnitude_loss})
                 self.suggestion_loss_sum = 0
                 self.adjustment_loss_sum = 0
                 self.magnitude_loss_sum = 0

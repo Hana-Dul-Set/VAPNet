@@ -113,6 +113,10 @@ class Tester(object):
         auc_score, tpr_score, threshold = self.calculate_suggestion_accuracy(total_gt_suggestion_label, total_predicted_suggestion)
         if custom_threshold != 0:
             threshold = custom_threshold
+        
+        # average suggestion
+        ave_predicted_suggestion = np.average(total_predicted_suggestion)
+
         # remove no-suggested elements
         suggested_index = np.where(total_predicted_suggestion >= threshold)[0]
 
@@ -186,15 +190,16 @@ class Tester(object):
         print(loss_log)
         print(accuracy_log)
         
-        wandb.log({"test_suggestion_loss": ave_suggestion_loss, "test_adjustment_loss": ave_adjustment_loss, "test_magnitude_loss": ave_magnitude_loss})
+        wandb.log({"Test Loss/test_suggestion_loss": ave_suggestion_loss, "Test Loss/test_adjustment_loss": ave_adjustment_loss, "Test Loss/test_magnitude_loss": ave_magnitude_loss})
         wandb.log({
-            "auc_score": auc_score,
-            "tpr_score": tpr_score,
-            f"f1-score(left)({custom_threshold})": f1_score[0],
-            f"f1-score(right)({custom_threshold})": f1_score[1],
-            f"f1-score(up)({custom_threshold})": f1_score[2],
-            f"f1-score(down)({custom_threshold})": f1_score[3],
-            f"iou({custom_threshold})": iou_score
+            "suggestion accuracy/auc_score": auc_score,
+            "suggestion accuracy/tpr_score": tpr_score,
+            "suggestion accuracy/average_suggestion": ave_predicted_suggestion,
+            f"{custom_threshold}/f1-score(left)({custom_threshold})": f1_score[0],
+            f"{custom_threshold}/f1-score(right)({custom_threshold})": f1_score[1],
+            f"{custom_threshold}/f1-score(up)({custom_threshold})": f1_score[2],
+            f"{custom_threshold}/f1-score(down)({custom_threshold})": f1_score[3],
+            f"{custom_threshold}/iou({custom_threshold})": iou_score
         })
     
     def add_to_total(self, target_np_array, total_np_array):
