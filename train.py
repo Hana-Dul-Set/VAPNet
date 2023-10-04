@@ -214,8 +214,8 @@ class Trainer(object):
             torch.save(self.model.state_dict(), checkpoint_path)
             print('Checkpoint Saved...\n')
             
-            for i in range(0.5, 1.0, 0.1):
-                test_while_training(threshold=i)
+            for i in range(5, 10, 1):
+                test_while_training(threshold=i/10)
             test_while_training()
 
             epoch_log = 'epoch: %d / %d, lr: %8f' % (self.epoch, self.max_epoch, self.optimizer.param_groups[0]['lr'])
