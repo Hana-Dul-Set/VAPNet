@@ -26,16 +26,19 @@ class VAPNet(nn.Module):
         )
 
         self.suggestion_output_layer = nn.Sequential(
+            nn.Linear(1024, 1024),
             nn.Linear(1024, 1),
             nn.Sigmoid()
         )
 
         self.adjustment_output_layer = nn.Sequential(
+            nn.Linear(1024, 1024),
             nn.Linear(1024, self.adjustment_count),
             nn.Softmax(dim=1)
         )
 
         self.magnitude_output_layer = nn.Sequential(
+            nn.Linear(1024, 1024),
             nn.Linear(1024, self.adjustment_count),
         )
         
