@@ -1,4 +1,5 @@
 import os
+import shutil
 import math
 
 import cv2
@@ -8,6 +9,7 @@ from PIL import Image
 import torch
 from torchvision.transforms import transforms
 import tqdm
+import albumentations as A
 
 from CSNet.image_utils.image_preprocess import get_shifted_image, get_zooming_image, get_rotated_image
 from CSNet.csnet import get_pretrained_CSNet
@@ -135,7 +137,7 @@ def make_pseudo_label(image_path):
     print("original_image_score:", original_image_score)
     """
 
-    if original_image_score + 0.15 < best_adjustment_score:
+    if original_image_score + 0.2 < best_adjustment_score:
         return {
             'name': image_name,
             'suggestion': [1.0],
@@ -156,6 +158,7 @@ def make_annotations_for_unlabeled(image_list, image_dir_path):
     adjustment_cnt = [0, 0, 0, 0]
     annotation_list = []
     # image_list = image_list[:10]
+    
     for image_name in tqdm.tqdm(image_list):
         image_path = os.path.join(image_dir_path, image_name)
         try:
@@ -331,25 +334,121 @@ def remove_duplicated_box(annotation_path):
             new_data_list.append(data)
     with open(annotation_path, 'w') as f:
         json.dump(new_data_list, f, indent=2)
-    image_list = os.listdir('./data/image/image_labeled_vapnet')
-    name_list = [x['name'] for x in new_data_list]
-    for image in image_list:
-        if image not in name_list:
-            os.remove(os.path.join('./data/image/image_labeled_vapnet', image))
 
 if __name__ == '__main__':
     cfg = Config()
     data_list = []
 
-    image_list = os.listdir('./data/open_images')
+    # image_list = os.listdir('./data/open_images')
     
-    # make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
-    csv_to_json_for_unlabeld('./pseudo_data.csv', './data/annotation/unlabeled_vapnet/unlabeled_training_set.json')
+
     """
+    # make pseudo dataset
+    json_list = []
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set.json', 'r') as f:
+        json_list = json.load(f)
+    image_list = []
+    for data in json_list:
+        name = data['name']
+        if '_' not in name:
+            image_list.append(name)
+    make_annotations_for_unlabeled(image_list, image_dir_path='./data/open_images')
+    """
+    # csv_to_json_for_unlabeld('./pseudo_data_1002.csv', './data/annotation/unlabeled_vapnet/unlabeled_training_set_1002.json')
+
+    """
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set_1002.json', 'r') as f:
+        json_list = json.load(f)
+    new_json_list = []
+    for origin_data in tqdm.tqdm(json_list):
+        data = origin_data.copy()
+        name = data['name']
+        suggestion = data['suggestion']
+        adjustment = data['adjustment']
+        magnitude = data['magnitude']
+        if suggestion == [1.0]:
+            image = Image.open(os.path.join('./data/open_images', name))
+            if adjustment[0] == 1:
+                adjustment[0] = 0.0
+                adjustment[1] = 1
+                magnitude[1] = magnitude[0]
+                magnitude[0] = 0
+            elif adjustment[1] == 1:
+                adjustment[0] = 1
+                adjustment[1] = 0.0
+                magnitude[0] = magnitude[1]
+                magnitude[1] = 0
+            h_flip = image.transpose(Image.FLIP_LEFT_RIGHT)
+            name = name.split('.')[0] + '_h.jpg'
+            data['name'] = name
+            data['adjustment'] = adjustment
+            data['magnitude'] = magnitude
+            h_flip.save(os.path.join('./data/open_images', name))
+            new_json_list.append(data)
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set_1002.json', 'r') as f:
+        json_list = json.load(f)
+    json_list = json_list + new_json_list
+    print(len(json_list))
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set_1002_h.json', 'w') as f:
+        json.dump(json_list, f, indent=2)
+    """
+    
+    """
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set_1002_h.json', 'r') as f:
+        json_list = json.load(f)
+    transform = A.Compose([
+        A.CLAHE(p=0.5),
+        A.HueSaturationValue(p=0.5),
+        A.GaussNoise(p=0.5),
+        A.ISONoise(p=0.5),
+        A.RandomBrightness(p=0.5)
+    ])
+    new_json_list = []
+    for origin_data in tqdm.tqdm(json_list):
+        data = origin_data.copy()
+        image_name = data['name']
+        suggestion = data['suggestion']
+        adjustment = data['adjustment']
+        magnitude = data['magnitude']
+        if suggestion == [0.0]:
+            continue
+        try:
+            image = cv2.imread(os.path.join('./data/open_images', image_name))
+            transformed_image = transform(image=image)['image']
+            transformed_image_name = image_name.split('.')[0] + '_a.jpg'
+            cv2.imwrite(os.path.join('./data/open_images', transformed_image_name), transformed_image)
+            data['name'] = transformed_image_name
+            new_json_list.append(data)
+        except Exception as e:
+            print(e)
+            print(data)
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set_1002_h.json', 'r') as f:
+        json_list = json.load(f)
+    json_list = json_list + new_json_list
+    print(len(json_list))
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set_1002_h_a.json', 'w') as f:
+        json.dump(json_list, f, indent=2)
+    
+    """
+    
+    """
+    with open('./data/annotation/unlabeled_vapnet/unlabeled_training_set_1002_h_a.json', 'r') as f:
+         json_list = json.load(f)
+    cnt = [0] * 5
+    for data in json_list:
+        if data['suggestion'] == [0.0]:
+            cnt[4] += 1
+        else:
+            cnt[data['adjustment'].index(1.0)] += 1
+    print(cnt)
+    print(sum(cnt))
+    """
+
+    
     labeled_annotation_path = './data/annotation/best_crop/best_testing_set_fixed.json'
     with open(labeled_annotation_path, 'r') as f:
         data_list = json.load(f)
     make_annotations_for_labeled(data_list, './data/image')
     remove_duplicated_box('./data/annotation/labeled_vapnet/labeled_testing_set.json')
     count_images_by_perturbation('./data/annotation/labeled_vapnet/labeled_testing_set.json')
-    """
+    

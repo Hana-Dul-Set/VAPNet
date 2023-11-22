@@ -19,7 +19,7 @@ class Config:
         self.num_workers = 0
 
         self.batch_size = 64
-        self.learning_rate = 2e-5
+        self.learning_rate = 2e-6
         self.weight_decay = 5e-4
 
         self.max_epoch = 10000

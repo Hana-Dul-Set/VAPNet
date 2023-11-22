@@ -73,6 +73,8 @@ class Trainer(object):
         self.adjustment_loss_sum = 0
         self.magnitude_loss_sum = 0
 
+        self.adjustment_l1_loss_sum = 0
+
     def training(self):
         print('\n======train start======\n')
         self.model.train().to(self.device)
@@ -151,6 +153,9 @@ class Trainer(object):
             # calculate adjustment loss using CrossEntropyLoss
             adjustment_loss = self.adjustment_loss_fn(predicted_adjustment, gt_adjustment_list)
 
+            # calculate adjustment loss using L1 Loss(not backward)
+            adjustment_l1_loss = torch.mean(torch.sum(torch.abs(gt_adjustment_list - predicted_adjustment), dim=1), dim=0)
+
             # calculate magnitude loss using L1Loss
             magnitude_loss = self.magnitude_loss_fn(predicted_magnitude, gt_magnitude_list)
 
@@ -158,6 +163,7 @@ class Trainer(object):
             train_log = f'suggestion loss:{suggestion_loss.item():.5f}/adjustment loss:{adjustment_loss.item():.5f}/magnitude loss:{magnitude_loss.item():.5f}/total loss:{total_loss:.5f}'
             print(train_log)
 
+            self.adjustment_l1_loss_sum += adjustment_l1_loss.item()
             self.adjustment_loss_sum += adjustment_loss.item()
             self.magnitude_loss_sum += magnitude_loss.item()
 
@@ -170,12 +176,17 @@ class Trainer(object):
                 ave_suggestion_loss = self.suggestion_loss_sum / self.suggested_iter
                 ave_adjustment_loss = self.adjustment_loss_sum / self.suggested_case_iter
                 ave_magnitude_loss = self.magnitude_loss_sum / self.suggested_case_iter
+
+                ave_adjustment_l1_loss = self.adjustment_l1_loss_sum / self.suggested_case_iter
                 wandb.log({"Train Loss/suggestion_loss": ave_suggestion_loss, "Train Loss/adjustment_loss": ave_adjustment_loss, "Train Loss/magnitude_loss": ave_magnitude_loss})
+                wandb.log({"Train Loss/adjustment_l1_loss": ave_adjustment_l1_loss})
                 self.suggestion_loss_sum = 0
                 self.adjustment_loss_sum = 0
                 self.magnitude_loss_sum = 0
                 self.suggested_iter = 0
                 self.suggested_case_iter = 0
+
+                self.adjustment_l1_loss_sum = 0
             """
             if self.train_iter % 5000 == 0:
                 checkpoint_path = os.path.join(self.cfg.weight_dir, 'checkpoint-weight.pth')
@@ -228,6 +239,8 @@ class Trainer(object):
             self.suggested_iter = 0
             self.suggested_case_iter = 0
 
+            self.adjustment_l1_loss_sum = 0
+
     def get_perturbed_image(self, data):
         image_name = data[0]
         image = Image.open(os.path.join(self.image_dir, image_name))
@@ -254,11 +267,11 @@ class Trainer(object):
         magnitude_label = [0.0] * self.adjustment_count
 
         if func_choice == 0:
-            adjustment_index = 0 if operator[0] < 0 else 1
+            adjustment_index = 0 if operator[0] > 0 else 1
             adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = operator[0] if operator[0] >= 0 else -operator[0]
         if func_choice == 1:
-            adjustment_index = 2 if operator[1] < 0 else 3
+            adjustment_index = 2 if operator[1] > 0 else 3
             adjustment_label[adjustment_index] = 1.0
             magnitude_label[adjustment_index] = operator[1] if operator[1] >= 0 else -operator[1]
         """

@@ -55,6 +55,8 @@ class Tester(object):
         self.f1_score_sum = [0] * (self.adjustment_count)
         self.iou_score_sum = 0
 
+        self.suggestion_loss_sum_l1 = 0
+
     def run(self, custom_threshold=0):
         print('\n======test start======\n')
 
@@ -89,6 +91,8 @@ class Tester(object):
                 self.adjustment_loss_sum += self.adjustment_loss_fn(predicted_adjustment, gt_adjustment_label)
                 self.magnitude_loss_sum += self.magnitude_loss_fn(predicted_magnitude, gt_magnitude_label)
 
+                self.suggestion_loss_sum_l1 += self.magnitude_loss_fn(predicted_suggestion, gt_suggestion_label)
+
                 # convert tensor to numpy for using sklearn metrics
                 gt_suggestion_label = gt_suggestion_label.to('cpu').numpy()
                 gt_adjustment_label = gt_adjustment_label.to('cpu').numpy()
@@ -107,6 +111,9 @@ class Tester(object):
                 total_gt_bounding_box += gt_bounding_box
                 total_gt_perturbed_bounding_box += gt_perturbed_bounding_box
                 total_image_size += image_size
+    
+        # calculate adjustment l1 loss
+        ave_adjustment_l1_loss = np.average(np.sum(np.abs(total_gt_adjustment_label - total_predicted_adjustment), axis=1), axis=0)
 
 
         # calculate auc, tpr, and threshold for suggestion
@@ -183,6 +190,9 @@ class Tester(object):
         ave_adjustment_loss = self.adjustment_loss_sum / self.data_length
         ave_magnitude_loss = self.magnitude_loss_sum  / self.data_length
 
+        ave_suggestion_l1_loss = self.suggestion_loss_sum_l1 / self.data_length
+        
+
         print(f'threshold:{threshold}')
         loss_log = f'{ave_suggestion_loss}/{ave_adjustment_loss}/{ave_magnitude_loss}'
         accuracy_log = f'{auc_score:.5f}/{tpr_score:.5f}/{f1_score}/{iou_score:.5f}'
@@ -191,6 +201,7 @@ class Tester(object):
         print(accuracy_log)
         
         wandb.log({"Test Loss/test_suggestion_loss": ave_suggestion_loss, "Test Loss/test_adjustment_loss": ave_adjustment_loss, "Test Loss/test_magnitude_loss": ave_magnitude_loss})
+        wandb.log({"Test Loss/test_adjustment_l1_loss": ave_adjustment_l1_loss.item(), "Test Loss/test_suggestion_l1_loss": ave_suggestion_l1_loss})
         wandb.log({
             "suggestion accuracy/auc_score": auc_score,
             "suggestion accuracy/tpr_score": tpr_score,
@@ -301,7 +312,7 @@ if __name__ == '__main__':
     cfg = Config()
 
     model = VAPNet(cfg)
-    weight_file = os.path.join(cfg.weight_dir, '0911_98epoch_vapnet_checkpoint.pth')
+    weight_file = os.path.join(cfg.weight_dir, 'checkpoint-weight.pth')
     model.load_state_dict(torch.load(weight_file, map_location='cpu'))
 
     tester = Tester(model, cfg)
